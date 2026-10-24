@@ -13,6 +13,11 @@ vi.mock("@/server/session", () => ({
   requireAdmin: async () => current,
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
+const sent: { to: string; subject: string; text: string }[] = [];
+vi.mock("@/lib/email", () => ({
+  sendEmail: async (m: { to: string; subject: string; text: string }) => { sent.push(m); return { sent: true }; },
+  emailDeliveryAvailable: () => true,
+}));
 
 const { db, schema } = await import("@/db");
 const care = await import("@/server/actions/care");
@@ -279,6 +284,9 @@ describe("changes requested, rejection and resubmission", () => {
     let [row] = await db.select().from(schema.serviceCenters).where(eq(schema.serviceCenters.id, c.id));
     expect(row.status).toBe("changes_requested");
     expect(row.statusReason).toContain("clearer tax card");
+    const notice = sent.at(-1)!;
+    expect(notice.text).toContain("clearer tax card");
+    expect(notice.text).toContain(`/center/${c.slug}`);
     current = people.tech;
     expect((await care.submitCenter(c.id)).ok).toBe(false);
     current = extra;

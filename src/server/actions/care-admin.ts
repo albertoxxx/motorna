@@ -17,6 +17,7 @@ import {
   type AdminCenterAction,
   type CenterCriterion,
 } from "@/lib/care";
+import { notifyCenterStatus } from "@/server/notify";
 
 const { serviceCenters: C, centerCredentials: CR, centerApprovalChecks: CK, centerServices: SV } = schema;
 
@@ -132,6 +133,7 @@ export async function changeCenterStatus(centerId: string, action: string, reaso
     await audit(a.admin.id, `center.${act}`, "service_center", centerId, { from: c.status, to, reason: note }, tx);
   });
   refresh(c.slug);
+  if (act !== "startReview") await notifyCenterStatus(centerId, act, note);
   return ok({ status: to });
 }
 

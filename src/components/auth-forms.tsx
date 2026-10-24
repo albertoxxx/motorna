@@ -23,6 +23,14 @@ function mapError(a: A, err: { status?: number; code?: string; message?: string 
   return a.errors.generic;
 }
 
+/** Explains why an account is needed, based on where the person was going. */
+function WhyAccount({ next, a }: { next: string | null; a: A }) {
+  if (!next) return null;
+  const msg = /\/cars\//.test(next) || /\/account\/(messages|favorites)/.test(next) ? a.why.listing : /\/sell/.test(next) ? a.why.sell : /\/(care|center)/.test(next) ? a.why.care : null;
+  if (!msg) return null;
+  return <Notice className="text-sm">{msg}</Notice>;
+}
+
 export function SignInForm({ locale, a }: { locale: string; a: A }) {
   const router = useRouter();
   const sp = useSearchParams();
@@ -44,6 +52,7 @@ export function SignInForm({ locale, a }: { locale: string; a: A }) {
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4" noValidate={false}>
+      <WhyAccount next={sp.get("next") ? next : null} a={a} />
       {error && <Notice tone="danger">{error}</Notice>}
       <Field label={a.email} htmlFor="email">
         <Input id="email" name="email" type="email" autoComplete="email" required dir="ltr" />
@@ -90,6 +99,7 @@ export function SignUpForm({ locale, a }: { locale: string; a: A }) {
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
+      <WhyAccount next={sp.get("next") ? next : null} a={a} />
       {error && <Notice tone="danger">{error}</Notice>}
       <Field label={a.name} htmlFor="name">
         <Input id="name" name="name" autoComplete="name" required minLength={2} maxLength={60} />
@@ -107,7 +117,7 @@ export function SignUpForm({ locale, a }: { locale: string; a: A }) {
       </p>
       <p className="text-center text-sm text-ink-2">
         {a.haveAccount}{" "}
-        <Link href={`/${locale}/auth/sign-in`} className="font-medium text-brand-700 hover:underline">{a.signInTitle}</Link>
+        <Link href={`/${locale}/auth/sign-in${sp.get("next") ? `?next=${encodeURIComponent(next)}` : ""}`} className="font-medium text-brand-700 hover:underline">{a.signInTitle}</Link>
       </p>
     </form>
   );

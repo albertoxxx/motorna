@@ -213,6 +213,8 @@ export const listings = pgTable(
     description: text().notNull().default(""),
     /** Seller-declared known defects. NULL = seller didn't state any (not "no defects"). */
     knownDefects: text(),
+    /** Seller's explicit consent to show their phone to signed-in buyers on this listing. Off by default. */
+    showPhone: boolean().notNull().default(false),
     cityId: smallint()
       .notNull()
       .references(() => cities.id),

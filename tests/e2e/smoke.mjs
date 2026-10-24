@@ -108,6 +108,11 @@ try {
   // Step 4: price & location (saves the draft)
   await S.page.waitForSelector("#priceEgp");
   await S.page.type("#priceEgp", "880,000");
+  const consent = await S.page.evaluate(() => {
+    const label = [...document.querySelectorAll("label")].find((l) => l.textContent.includes("Allow buyers to see my phone number"));
+    return { exists: !!label, checked: !!label?.querySelector("input")?.checked, phoneField: !!document.querySelector("#sellerPhone") };
+  });
+  assert(consent.exists && !consent.checked && !consent.phoneField, "phone consent is offered and off by default (no number field until opted in)");
   await clickText(S.page, "Continue");
   // Step 5: photos
   await S.page.waitForSelector("input[type=file]");
@@ -221,6 +226,14 @@ try {
   // Regression checks from the UI audit
   await A.page.setViewport({ width: 1280, height: 900 });
   await go(A.page, "/en");
+  await go(A.page, slug);
+  const anonText = await A.page.evaluate(() => document.body.innerText);
+  assert(anonText.includes("Create an account to message the seller") && anonText.includes("protect sellers from spam"), "signed-out buyers see why an account is needed");
+  assert(!anonText.includes("Show phone number"), "no phone reveal for a listing without consent");
+  await go(A.page, "/en/auth/sign-up?next=" + encodeURIComponent(slug));
+  assert((await A.page.evaluate(() => document.body.innerText)).includes("Sign in to message the seller"), "sign-up page explains the account when coming from a listing");
+  const back = await A.page.$eval("form a[href*='/en/auth/sign-in']", (a) => a.getAttribute("href"));
+  assert(back.includes("next="), "sign-up → sign-in link keeps the return path");
   const logoText = await A.page.$eval("header a[href='/en']", (a) => a.textContent.trim());
   assert(logoText === "MOTORNA", `logo text reads "MOTORNA" (got "${logoText}")`);
   await go(A.page, "/en/cars?mileageMin=1000000");

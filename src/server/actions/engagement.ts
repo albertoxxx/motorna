@@ -12,7 +12,7 @@ const { listings: L, favorites: F, conversations: CV, messages: M, reports: R, u
 
 async function publishedListing(listingId: string) {
   const [l] = await db
-    .select({ id: L.id, sellerId: L.sellerId, status: L.status, slug: L.slug })
+    .select({ id: L.id, sellerId: L.sellerId, status: L.status, slug: L.slug, showPhone: L.showPhone })
     .from(L)
     .where(and(eq(L.id, listingId), isNull(L.deletedAt)));
   return l && l.status === "published" ? l : null;
@@ -128,14 +128,16 @@ export async function reportListing(
   return ok(null);
 }
 
-/** Reveals the seller's phone to a signed-in user, only if the seller opted in. */
+/** Reveals the seller's phone to a signed-in user, only if the seller opted in on this listing. */
 export async function revealPhone(listingId: string): Promise<ActionResult<{ phone: string }>> {
   const user = await getCurrentUser();
   if (!user) return fail("unauthorized");
   if (!(await rateLimit("phoneReveal", user.id))) return fail("rateLimited");
   const l = await publishedListing(listingId);
   if (!l) return fail("listingUnavailable");
-  const [s] = await db.select({ phone: U.phone, showPhone: U.showPhone }).from(U).where(eq(U.id, l.sellerId));
-  if (!s?.phone || !s.showPhone) return fail("forbidden");
+  // Per-listing consent is the only switch; the profile number is used only when it's on.
+  if (!l.showPhone) return fail("forbidden");
+  const [s] = await db.select({ phone: U.phone }).from(U).where(eq(U.id, l.sellerId));
+  if (!s?.phone) return fail("forbidden");
   return ok({ phone: s.phone });
 }

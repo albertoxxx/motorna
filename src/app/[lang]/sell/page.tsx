@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Check } from "lucide-react";
 import { resolveLocale } from "@/i18n/server";
 import { requireUser } from "@/server/session";
 import { listingFormOptions } from "@/server/form-data";
@@ -44,13 +45,26 @@ export default async function SellPage({ params, searchParams }: PageProps<"/[la
         title: l.title,
         description: l.description,
         knownDefects: l.knownDefects ?? "",
+        showPhone: l.showPhone,
       }
     : {};
 
   return (
     <div className="container-page py-8">
       <h1 className="text-2xl font-bold sm:text-3xl">{dict.sell.title}</h1>
-      <p className="mb-8 mt-1.5 text-ink-2">{dict.sell.intro}</p>
+      <p className="mt-1.5 text-ink-2">{dict.sell.intro}</p>
+      {!l && (
+        <details className="mb-8 mt-4 rounded-[var(--radius-lg)] border border-line bg-surface p-4 sm:p-5" open>
+          <summary className="cursor-pointer font-semibold">{dict.sell.prepTitle}</summary>
+          <ul className="mt-3 grid gap-2 text-sm text-ink-2 sm:grid-cols-2">
+            {dict.sell.prepItems.map((t) => (
+              <li key={t} className="flex items-start gap-2"><Check className="mt-0.5 size-4 shrink-0 text-success-700" aria-hidden />{t}</li>
+            ))}
+          </ul>
+          <p className="mt-3 text-xs text-ink-3">{dict.sell.prepNote}</p>
+        </details>
+      )}
+      {l && <div className="mb-8" />}
       <ListingForm
         locale={locale}
         dict={{ sell: dict.sell, enums: dict.enums, common: dict.common, validation: dict.validation, errors: dict.errors }}

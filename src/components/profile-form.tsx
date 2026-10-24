@@ -79,7 +79,7 @@ export function ProfileForm({
         <Field label={A.phone} htmlFor="phone" hint={A.phoneHint} error={err("phone")} optional optionalLabel={dict.common.optional}>
           <Input id="phone" name="phone" type="tel" inputMode="tel" defaultValue={profile.phone ?? ""} dir="ltr" invalid={!!errors.phone} autoComplete="tel" />
         </Field>
-        <Checkbox name="showPhone" defaultChecked={profile.showPhone} label={A.showPhone} />
+        <p className="-mt-2 text-sm text-ink-3">{A.phonePerListing}</p>
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label={A.city} htmlFor="cityId" optional optionalLabel={dict.common.optional}>
             <Select id="cityId" name="cityId" defaultValue={profile.cityId ?? ""}>

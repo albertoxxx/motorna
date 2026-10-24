@@ -15,6 +15,11 @@ vi.mock("@/server/session", () => ({
   requireAdmin: async () => current,
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
+const sent: { to: string; subject: string; text: string }[] = [];
+vi.mock("@/lib/email", () => ({
+  sendEmail: async (m: { to: string; subject: string; text: string }) => { sent.push(m); return { sent: true }; },
+  emailDeliveryAvailable: () => true,
+}));
 
 const { db, schema } = await import("@/db");
 const listings = await import("@/server/actions/listings");
@@ -260,7 +265,10 @@ describe("messaging, favorites, reports", () => {
     const id = await publishedListing();
     current = users.buyer;
     expect(await engagement.revealPhone(id)).toEqual({ ok: false, error: "forbidden" });
+    // The old profile-wide toggle alone no longer exposes the number: consent is per listing.
     await db.update(schema.users).set({ phone: "01001234567", showPhone: true }).where(eq(schema.users.id, users.seller.id));
+    expect(await engagement.revealPhone(id)).toEqual({ ok: false, error: "forbidden" });
+    await db.update(schema.listings).set({ showPhone: true }).where(eq(schema.listings.id, id));
     expect(await engagement.revealPhone(id)).toEqual({ ok: true, data: { phone: "01001234567" } });
     current = null;
     expect(await engagement.revealPhone(id)).toEqual({ ok: false, error: "unauthorized" });
@@ -354,6 +362,75 @@ describe("known defects", () => {
       const r = await listings.saveListing(null, bad, "draft");
       expect(r.ok, field).toBe(false);
     }
+  });
+});
+
+describe("email notifications", () => {
+  it("tells the seller when a listing is approved or rejected (with the reason)", async () => {
+    sent.length = 0;
+    const id = await publishedListing();
+    const approved = sent.find((m) => m.subject.includes("Toyota Corolla 2020"));
+    expect(approved?.text).toContain(`/cars/`);
+    current = users.admin;
+    await admin.moderateListing(id, "takeDown", "Photos show a different car");
+    const down = sent.at(-1)!;
+    expect(down.text).toContain("Photos show a different car");
+    expect(down.text).toContain(`/account/listings/${id}/edit`);
+  });
+});
+
+describe("password recovery email", () => {
+  it("sends a reset link to registered emails only, and the link resets the password", async () => {
+    const { auth } = await import("@/lib/auth");
+    sent.length = 0;
+    const email = `reset-${Date.now()}@test.local`;
+    await auth.api.signUpEmail({ body: { name: "Reset Me", email, password: "old-password-1" } });
+    await auth.api.requestPasswordReset({ body: { email, redirectTo: "/ar/auth/reset-password" } });
+    await auth.api.requestPasswordReset({ body: { email: "nobody@test.local", redirectTo: "/ar/auth/reset-password" } });
+    expect(sent.filter((m) => m.to === "nobody@test.local")).toHaveLength(0);
+    const mail = sent.find((m) => m.to === email)!;
+    expect(mail.subject).toContain("كلمة المرور");
+    const token = mail.text.match(/reset-password\/([^?\s]+)/)?.[1] ?? new URL(mail.text.match(/https?:\/\/\S+/)![0]).searchParams.get("token");
+    expect(token).toBeTruthy();
+    await auth.api.resetPassword({ body: { token: token!, newPassword: "new-password-2" } });
+    const signIn = await auth.api.signInEmail({ body: { email, password: "new-password-2" } });
+    expect(signIn.user.email).toBe(email);
+  });
+});
+
+describe("seller phone consent", () => {
+  const getListingBySlug = import("@/server/listings").then((m) => m.getListingBySlug);
+  it("is off by default and enforced server-side; messaging still works", async () => {
+    const id = await publishedListing();
+    current = users.buyer;
+    expect((await engagement.revealPhone(id)).ok).toBe(false);
+    expect((await engagement.contactSeller(id, "Is it still available?")).ok).toBe(true);
+  });
+
+  it("needs a phone number when turned on, saves it, and can be turned off without re-review", async () => {
+    const id = await publishedListing();
+    await db.update(schema.users).set({ phone: null }).where(eq(schema.users.id, users.seller.id));
+    current = users.seller;
+    const noPhone = await listings.saveListing(id, { ...input(), showPhone: true }, "draft");
+    expect(noPhone.ok === false && noPhone.fields?.sellerPhone).toBe("phone");
+    const on = await listings.saveListing(id, { ...input(), showPhone: true, sellerPhone: "01012345678" }, "draft");
+    expect(on.ok && on.data.status).toBe("published");
+    current = null;
+    expect((await engagement.revealPhone(id)).ok).toBe(false); // signed-out users never get it
+    current = users.buyer;
+    expect(await engagement.revealPhone(id)).toEqual({ ok: true, data: { phone: "01012345678" } });
+    const [row] = await db.select({ slug: schema.listings.slug }).from(schema.listings).where(eq(schema.listings.id, id));
+    const page = await (await getListingBySlug)(row.slug);
+    expect(JSON.stringify(page)).not.toContain("01012345678"); // page data carries only a boolean
+    expect(page?.seller.phoneAvailable).toBe(true);
+    current = users.seller;
+    const off = await listings.saveListing(id, { ...input(), showPhone: false, sellerPhone: "01099999999" }, "draft");
+    expect(off.ok && off.data.status).toBe("published");
+    current = users.buyer;
+    expect((await engagement.revealPhone(id)).ok).toBe(false);
+    // A number typed while consent is off isn't saved.
+    const [me] = await db.select({ phone: schema.users.phone }).from(schema.users).where(eq(schema.users.id, users.seller.id));
+    expect(me.phone).toBe("01012345678");
   });
 });
 

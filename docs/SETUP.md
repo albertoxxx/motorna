@@ -7,3 +7,17 @@
 4. **Email** — add a provider in `src/lib/email.ts` and set `EMAIL_PROVIDER`.
 5. **Hosting** — Vercel: import the repo, framework Next.js, add the env vars above.
 6. **First admin** — sign up, then `UPDATE users SET role = 'admin' WHERE email = 'you@…';`.
+
+## Email (Resend)
+
+Password recovery, listing approved/rejected, and service-center status emails use Resend.
+
+| Variable | Example | Notes |
+|---|---|---|
+| `EMAIL_PROVIDER` | `resend` | Anything else on Vercel means **no emails are sent** (and nothing sensitive is logged). |
+| `RESEND_API_KEY` | `re_…` | Secret. Add it in Vercel only, never in code or chat. Use "Sending access" for this domain only. |
+| `EMAIL_FROM` | `MOTORNA <no-reply@mail.yourdomain.com>` | Must use a domain verified in Resend. |
+
+Resend only sends to arbitrary recipients from a **domain you own and have verified** (DNS records: SPF, DKIM, and optionally DMARC). `motorna.vercel.app` can't be verified. Until a domain is verified, Resend's test sender delivers only to the Resend account's own email.
+
+Without these variables, the forgot-password page tells people that email reset isn't available yet, and moderation emails are skipped. The actions themselves still work.

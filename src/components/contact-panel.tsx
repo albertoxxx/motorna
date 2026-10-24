@@ -32,12 +32,23 @@ export function ContactPanel({
   const router = useRouter();
 
   if (!signedIn) {
+    const signUpHref = signInHref.replace("/auth/sign-in", "/auth/sign-up");
     return (
       <div className="flex flex-col gap-2">
-        <ButtonLink href={signInHref} size="lg" className="w-full">
+        <ButtonLink href={signUpHref} size="lg" className="w-full">
           <MessageSquare className="size-4" />
-          {dict.listing.contactSignIn}
+          {dict.listing.contactSignUp}
         </ButtonLink>
+        <ButtonLink href={signInHref} size="lg" variant="secondary" className="w-full">
+          {dict.listing.contactHaveAccount}
+        </ButtonLink>
+        <p className="text-xs leading-relaxed text-ink-3">{dict.listing.whyAccount}</p>
+        {sellerHasPhone && (
+          <p className="flex items-center gap-1.5 text-xs text-ink-2">
+            <Phone className="size-3.5" aria-hidden />
+            {dict.listing.phoneAfterSignIn}
+          </p>
+        )}
       </div>
     );
   }

@@ -5,6 +5,7 @@ import { nextCookies } from "better-auth/next-js";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { sendEmail } from "@/lib/email";
+import { passwordResetEmail } from "@/lib/email-templates";
 
 export const auth = betterAuth({
   appName: "MOTORNA",
@@ -28,11 +29,9 @@ export const auth = betterAuth({
     revokeSessionsOnPasswordReset: true,
     resetPasswordTokenExpiresIn: 60 * 30,
     sendResetPassword: async ({ user, url }) => {
-      await sendEmail({
-        to: user.email,
-        subject: "MOTORNA — إعادة تعيين كلمة المرور / Reset your password",
-        text: `افتح الرابط لتعيين كلمة مرور جديدة (صالح ٣٠ دقيقة):\nOpen this link to set a new password (valid 30 minutes):\n${url}`,
-      });
+      // Never throw or log the link: the response is the same whether or not the email exists.
+      const locale = (user as { locale?: string }).locale === "en" ? "en" : "ar";
+      await sendEmail({ to: user.email, ...passwordResetEmail(locale, url) });
     },
   },
   user: {

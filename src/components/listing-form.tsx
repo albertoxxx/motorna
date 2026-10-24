@@ -36,6 +36,8 @@ type Values = {
   title: string;
   description: string;
   knownDefects: string;
+  showPhone: boolean;
+  sellerPhone: string;
 };
 
 export type ListingFormInitial = Partial<Values> & { id?: string; status?: string };
@@ -47,7 +49,7 @@ const STEP_FIELDS: (keyof Values)[][] = [
   ["makeId", "modelId", "modelOther", "year", "trim"],
   ["transmission", "fuelType", "bodyType", "engineCc", "color"],
   ["condition", "mileageKm"],
-  ["priceEgp", "negotiable", "cityId", "area"],
+  ["priceEgp", "negotiable", "cityId", "area", "showPhone", "sellerPhone"],
   [], // photos
   ["title", "description", "knownDefects"],
   [], // review
@@ -66,6 +68,7 @@ export function ListingForm({
   cities,
   initial,
   initialImages,
+  profilePhone,
 }: {
   locale: Locale;
   dict: Pick<Dictionary, "sell" | "enums" | "common" | "validation" | "errors">;
@@ -74,6 +77,7 @@ export function ListingForm({
   cities: CityWithId[];
   initial: ListingFormInitial;
   initialImages: Img[];
+  profilePhone: string;
 }) {
   const S = dict.sell;
   const router = useRouter();
@@ -92,6 +96,7 @@ export function ListingForm({
     makeId: "", modelId: "", modelOther: "", trim: "", year: "", mileageKm: "", priceEgp: "", negotiable: true,
     condition: "used", transmission: "automatic", fuelType: "petrol", bodyType: "", color: "",
     engineCc: "", cityId: String(cities.find((c) => c.slug === "alexandria")?.id ?? ""), area: "", title: "", description: "", knownDefects: "",
+    showPhone: false, sellerPhone: profilePhone,
     ...initial,
   });
   const name = (r: { nameAr: string; nameEn: string }) => (locale === "ar" ? r.nameAr : r.nameEn);
@@ -129,7 +134,10 @@ export function ListingForm({
       if (v.trim.trim() && looksLikeEngineSize(v.trim)) e.trim = "trimIsEngine";
     }
     if (stepIdx.includes(USAGE_STEP)) req("mileageKm");
-    if (stepIdx.includes(PRICE_STEP)) { req("priceEgp"); req("cityId"); }
+    if (stepIdx.includes(PRICE_STEP)) {
+      req("priceEgp"); req("cityId");
+      if (v.showPhone && !v.sellerPhone.trim()) e.sellerPhone = "phone";
+    }
     if (stepIdx.includes(DETAILS_STEP)) {
       if (v.title.trim().length < 10 || v.title.trim().length > 100) e.title = "titleLength";
     }
@@ -144,7 +152,7 @@ export function ListingForm({
 
   function persist(intent: "draft" | "submit", after?: (r: { id: string; status: string; missing: ("photos" | "description")[]; slug: string }) => void) {
     start(async () => {
-      const res = await saveListing(id ?? null, { ...v }, intent);
+      const res = await saveListing(id ?? null, { ...v, sellerPhone: v.showPhone ? v.sellerPhone : "" }, intent);
       if (!res.ok) {
         if (res.fields) {
           setErrors(res.fields);
@@ -365,6 +373,17 @@ export function ListingForm({
             <Field label={S.area} htmlFor="area" hint={S.areaHint} optional optionalLabel={dict.common.optional}>
               <Input id="area" value={v.area} maxLength={60} onChange={(e) => set("area", e.target.value)} />
             </Field>
+            <fieldset className="rounded-[var(--radius-md)] border border-line bg-canvas p-4 sm:col-span-2">
+              <legend className="px-1 text-sm font-semibold">{S.contactTitle}</legend>
+              <p className="mb-3 text-sm text-ink-2">{S.messagingAlwaysOn}</p>
+              <Checkbox label={S.showPhoneConsent} checked={v.showPhone} onChange={(e) => set("showPhone", e.target.checked)} />
+              <p className="mt-2 text-xs leading-relaxed text-ink-3">{S.showPhonePrivacy}</p>
+              {v.showPhone && (
+                <Field className="mt-3" label={S.sellerPhone} htmlFor="sellerPhone" hint={S.sellerPhoneHint} error={err("sellerPhone")} required requiredLabel={dict.common.required}>
+                  <Input id="sellerPhone" type="tel" inputMode="tel" dir="ltr" autoComplete="tel" value={v.sellerPhone} invalid={!!errors.sellerPhone} onChange={(e) => set("sellerPhone", e.target.value)} />
+                </Field>
+              )}
+            </fieldset>
           </div>
         )}
 
@@ -438,6 +457,7 @@ export function ListingForm({
               <div className="flex justify-between gap-3"><dt className="text-ink-3">{S.fuel}</dt><dd>{dict.enums.fuel[v.fuelType as keyof typeof dict.enums.fuel]}</dd></div>
               <div className="flex justify-between gap-3"><dt className="text-ink-3">{S.condition}</dt><dd>{dict.enums.condition[v.condition as keyof typeof dict.enums.condition]}</dd></div>
               <div className="flex justify-between gap-3"><dt className="text-ink-3">{S.photosTitle}</dt><dd className="tabular">{images.length}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-ink-3">{S.contactTitle}</dt><dd>{v.showPhone ? S.phoneShown : S.phoneHiddenReview}</dd></div>
               <div className="flex justify-between gap-3 sm:col-span-2"><dt className="text-ink-3">{S.knownDefects}</dt><dd dir="auto" className="truncate">{v.knownDefects.trim() || "—"}</dd></div>
             </dl>
             {(() => {

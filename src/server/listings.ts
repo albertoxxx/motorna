@@ -243,8 +243,8 @@ export async function getListingBySlug(slug: string) {
         id: U.id,
         name: U.name,
         role: U.role,
-        phone: U.phone,
-        showPhone: U.showPhone,
+        // Never select the number itself for page rendering: only whether it may be revealed.
+        phoneAvailable: sql<boolean>`(${L.showPhone} AND ${U.phone} IS NOT NULL)`,
         createdAt: U.createdAt,
         suspendedAt: U.suspendedAt,
       },

@@ -257,7 +257,7 @@ export default async function ListingPage({ params }: PageProps<"/[lang]/cars/[s
               listingId={l.id}
               locale={locale}
               signedIn={!!user}
-              sellerHasPhone={!!seller.phone && seller.showPhone}
+              sellerHasPhone={seller.phoneAvailable}
               signInHref={signInHref}
               dict={{ listing: dict.listing, errors: dict.errors, common: dict.common, messages: dict.messages }}
             />

@@ -103,6 +103,13 @@ export async function saveListing(
   const refs = await verifyRefs(input, user.id);
   if (refs.error || !refs.model) return fail("validation", refs.error ?? undefined);
 
+  // Phone consent: showing a number needs one. A newly entered number is saved to the seller's profile.
+  if (input.showPhone && !input.sellerPhone) {
+    const [me] = await db.select({ phone: schema.users.phone }).from(schema.users).where(eq(schema.users.id, user.id));
+    if (!me?.phone) return fail("validation", { sellerPhone: "phone" });
+  }
+  if (input.showPhone && input.sellerPhone) await db.update(schema.users).set({ phone: input.sellerPhone }).where(eq(schema.users.id, user.id));
+
   const values = {
     makeId: input.makeId,
     modelId: refs.model.id,
@@ -122,6 +129,7 @@ export async function saveListing(
     title: input.title,
     description: input.description,
     knownDefects: input.knownDefects ?? null,
+    showPhone: input.showPhone,
   };
 
   let id: string;

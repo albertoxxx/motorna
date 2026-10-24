@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/server/session";
 import { audit } from "@/server/audit";
 import { fail, ok, type ActionResult } from "@/server/result";
 import { nextStatus } from "@/lib/listing-state";
+import { notifyListingModerated } from "@/server/notify";
 
 const { listings: L, reports: R, users: U, sessions: S } = schema;
 
@@ -59,6 +60,7 @@ export async function moderateListing(
   });
   revalidatePath("/[lang]/admin", "layout");
   revalidatePath(`/[lang]/cars/${l.slug}`, "page");
+  await notifyListingModerated(l.id, decision, note);
   return ok({ status: to });
 }
 

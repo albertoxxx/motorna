@@ -112,6 +112,23 @@ export const listingInputSchema = z
       (v) => (typeof v === "string" ? v.trim() || undefined : undefined),
       z.string().max(2000, { error: "knownDefectsLength" }).optional(),
     ),
+    /** Explicit, optional consent; anything but a clear "yes" means no. */
+    showPhone: z.preprocess((v) => v === true || v === "on" || v === "true", z.boolean()).default(false),
+    /** Seller's mobile, only needed (and saved to their profile) when showPhone is on. */
+    sellerPhone: z.preprocess(
+      (v) => (typeof v === "string" && v.trim() !== "" ? v : undefined),
+      z
+        .string()
+        .transform((s, ctx) => {
+          const n = normalizeEgyptPhone(s);
+          if (!n) {
+            ctx.addIssue({ code: "custom", message: "phone" });
+            return z.NEVER;
+          }
+          return n;
+        })
+        .optional(),
+    ),
   })
   .superRefine((v, ctx) => {
     if (!v.modelId && !v.modelOther) {
