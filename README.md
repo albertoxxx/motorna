@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MOTORNA
 
-## Getting Started
+Car marketplace for Egypt — Arabic-first (RTL) with English, EGP pricing, launching in Alexandria.
 
-First, run the development server:
+**Status:** Phase 1 (functional marketplace MVP) complete. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full plan and [docs/PHASE-1.md](docs/PHASE-1.md) for what was built, tested, and what's left.
+
+## Stack
+
+Next.js 16 (App Router) · TypeScript · Tailwind CSS 4 · PostgreSQL · Drizzle ORM · Better Auth · sharp
+
+## Run locally
+
+Requirements: Node 22+, PostgreSQL 14+.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env.local          # set DATABASE_URL and BETTER_AUTH_SECRET
+npm run db:migrate                  # create tables
+npm run db:seed:reference           # governorates + makes/models (safe in any env)
+npm run db:seed:demo                # DEV ONLY: demo users, listings, placeholder photos
+npm run dev                         # http://localhost:3000 → /ar
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Demo accounts (after `db:seed:demo`): `admin@example.com`, `karim@example.com`, `nour@example.com`, `omar@example.com` — password `motorna-demo-2026`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+In development, password-reset emails are printed to the server console.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Scripts
 
-## Learn More
+| Command | What it does |
+|---|---|
+| `npm run dev` / `build` / `start` | Next.js |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run lint` | ESLint |
+| `npm test` | Unit + integration tests (needs a local `motorna_test` database) |
+| `npm run db:generate` | New migration from `src/db/schema.ts` |
+| `npm run db:migrate` | Apply migrations |
+| `node tests/e2e/smoke.mjs` | End-to-end UI smoke test (needs a running app, demo seed, Chrome via `CHROME_PATH`) |
 
-To learn more about Next.js, take a look at the following resources:
+## Project layout
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+src/app/[lang]/        pages (ar/en)
+src/app/api/           auth + image upload
+src/components/        UI (ui/ = design system primitives)
+src/server/            data access, server actions, rate limiting, audit
+src/lib/               validation, formatting, storage, images, search params
+src/db/                schema + reference data
+src/i18n/              locale config + dictionaries
+drizzle/               SQL migrations
+scripts/               seeds
+tests/                 vitest + e2e
+```
