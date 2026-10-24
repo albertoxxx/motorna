@@ -82,8 +82,7 @@ function FilterForm({ locale, dict, filters, makes, models, cities, onDone }: Pr
           </Select>
         </label>
       </div>
-      <fieldset className="grid grid-cols-2 gap-3">
-        <legend className="sr-only">{s.priceMin} / {s.priceMax}</legend>
+      <div className="grid grid-cols-2 gap-3">
         <label className={label}>
           {s.priceMin}
           <Input inputMode="numeric" className="tabular" value={f.priceMin ?? ""} onChange={(e) => set("priceMin", num(e.target.value))} />
@@ -92,7 +91,7 @@ function FilterForm({ locale, dict, filters, makes, models, cities, onDone }: Pr
           {s.priceMax}
           <Input inputMode="numeric" className="tabular" value={f.priceMax ?? ""} onChange={(e) => set("priceMax", num(e.target.value))} />
         </label>
-      </fieldset>
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <label className={label}>
           {s.yearMin}

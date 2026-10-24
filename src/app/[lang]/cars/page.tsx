@@ -62,7 +62,7 @@ export default async function CarsPage({ params, searchParams }: PageProps<"/[la
           <p className="tabular mt-1 text-sm text-ink-3" aria-live="polite">
             {result.total > PAGE_SIZE
               ? t(dict.search.resultsRange, { from: formatNumber(from, locale), to: formatNumber(to, locale), n: formatNumber(result.total, locale) })
-              : t(dict.search.resultsCount, { n: formatNumber(result.total, locale) })}
+              : t(result.total === 1 ? dict.search.resultsCountOne : dict.search.resultsCount, { n: formatNumber(result.total, locale) })}
           </p>
         </div>
         <div className="flex w-full items-center gap-2 sm:w-auto">

@@ -141,6 +141,7 @@ const ar = {
   search: {
     title: "سيارات للبيع",
     resultsCount: "{n} نتيجة",
+    resultsCountOne: "نتيجة واحدة",
     resultsRange: "{from}–{to} من {n} نتيجة",
     noResultsTitle: "مفيش عربيات بالفلاتر دي",
     noResultsBody: "جرّب توسّع نطاق السعر أو تشيل فلتر الموديل أو المحافظة.",

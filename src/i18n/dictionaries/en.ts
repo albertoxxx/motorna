@@ -143,6 +143,7 @@ const en: Dictionary = {
   search: {
     title: "Cars for sale",
     resultsCount: "{n} results",
+    resultsCountOne: "1 result",
     resultsRange: "{from}–{to} of {n} results",
     noResultsTitle: "No cars match these filters",
     noResultsBody: "Try widening the price range or removing the model or governorate filter.",
