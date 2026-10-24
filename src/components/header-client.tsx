@@ -76,11 +76,11 @@ export function HeaderClient({ locale, nav, user, unread }: Props) {
       </a>
       <div className="container-page flex h-16 items-center gap-6">
         <Logo locale={locale} />
-        <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
-          <Link href={p("/cars")} className={cn("rounded-md px-3 py-2 text-sm font-medium", isActive(p("/cars")) ? "text-ink" : "text-ink-2 hover:text-ink")}>
+        <nav className="hidden items-center gap-1 lg:flex" aria-label="Main">
+          <Link href={p("/cars")} className={cn("whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium", isActive(p("/cars")) ? "text-ink" : "text-ink-2 hover:text-ink")}>
             {nav.browse}
           </Link>
-          <Link href={p("/verification")} className={cn("rounded-md px-3 py-2 text-sm font-medium", isActive(p("/verification")) ? "text-ink" : "text-ink-2 hover:text-ink")}>
+          <Link href={p("/verification")} className={cn("whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium", isActive(p("/verification")) ? "text-ink" : "text-ink-2 hover:text-ink")}>
             {nav.howItWorks}
           </Link>
         </nav>
@@ -95,7 +95,7 @@ export function HeaderClient({ locale, nav, user, unread }: Props) {
             {nav.language}
           </Link>
           {user ? (
-            <div className="relative hidden md:block" ref={menuRef}>
+            <div className="relative hidden lg:block" ref={menuRef}>
               <button
                 onClick={() => setMenuOpen((o) => !o)}
                 aria-expanded={menuOpen}
@@ -103,7 +103,7 @@ export function HeaderClient({ locale, nav, user, unread }: Props) {
                 className="relative inline-flex h-10 items-center gap-2 rounded-md px-2.5 text-sm font-medium text-ink hover:bg-canvas"
               >
                 <span className="grid size-7 place-items-center rounded-full bg-navy-900 text-xs font-semibold text-white">{user.name.trim().charAt(0).toUpperCase()}</span>
-                <span className="max-w-32 truncate">{user.name}</span>
+                <span className="max-w-32 truncate"><bdi>{user.name}</bdi></span>
                 <ChevronDown className="size-4 text-ink-3" />
                 {unread > 0 && <span className="absolute start-6 top-1.5 size-2.5 rounded-full bg-danger-600 ring-2 ring-surface" aria-label={`${unread}`} />}
               </button>
@@ -125,7 +125,7 @@ export function HeaderClient({ locale, nav, user, unread }: Props) {
               )}
             </div>
           ) : (
-            <Link href={p("/auth/sign-in")} className="hidden rounded-md px-3 py-2 text-sm font-medium text-ink hover:bg-canvas md:inline-flex">
+            <Link href={p("/auth/sign-in")} className="hidden whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium text-ink hover:bg-canvas lg:inline-flex">
               {nav.signIn}
             </Link>
           )}
@@ -134,7 +134,7 @@ export function HeaderClient({ locale, nav, user, unread }: Props) {
             {nav.sell}
           </Link>
           <button
-            className="relative inline-flex size-10 items-center justify-center rounded-md text-ink hover:bg-canvas md:hidden"
+            className="relative inline-flex size-10 items-center justify-center rounded-md text-ink hover:bg-canvas lg:hidden"
             onClick={() => setMobileOpen((o) => !o)}
             aria-expanded={mobileOpen}
             aria-controls="mobile-nav"
@@ -146,7 +146,7 @@ export function HeaderClient({ locale, nav, user, unread }: Props) {
         </div>
       </div>
       {mobileOpen && (
-        <nav id="mobile-nav" className="border-t border-line bg-surface md:hidden" aria-label="Mobile">
+        <nav id="mobile-nav" className="max-h-[calc(100dvh-4rem)] overflow-y-auto border-t border-line bg-surface lg:hidden" aria-label="Mobile">
           <div className="container-page flex flex-col py-3">
             <Link href={p("/sell")} className={buttonClass("primary", "lg", "mb-3 w-full")}>
               <Plus className="size-4" />

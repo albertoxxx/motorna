@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarDays, Gauge, Settings2, Fuel, MapPin, ShieldAlert, UserRound, Pencil } from "lucide-react";
+import { CalendarDays, Gauge, Settings2, Fuel, MapPin, ShieldAlert, ShieldCheck, UserRound, Pencil, MessageSquare } from "lucide-react";
 import { resolveLocale } from "@/i18n/server";
 import { t } from "@/i18n/t";
 import type { Locale } from "@/i18n/config";
@@ -19,7 +19,7 @@ import { ListingCard } from "@/components/listing-card";
 import { PlateTag } from "@/components/logo";
 import { Badge, statusTone } from "@/components/ui/badge";
 import { Notice } from "@/components/ui/states";
-import { ButtonLink } from "@/components/ui/button";
+import { ButtonLink, buttonClass } from "@/components/ui/button";
 
 async function load(params: PageProps<"/[lang]/cars/[slug]">["params"]) {
   const { lang, slug } = await params;
@@ -76,6 +76,7 @@ export default async function ListingPage({ params }: PageProps<"/[lang]/cars/[s
   const city = locale === "ar" ? data.city.nameAr : data.city.nameEn;
   const name = `${make} ${model} ${l.year}`;
   const selfHref = `/${locale}/cars/${l.slug}`;
+  const showMobileBar = !isOwner && l.status === "published";
   const signInHref = `/${locale}/auth/sign-in?next=${encodeURIComponent(selfHref)}`;
 
   const statusMsg =
@@ -105,7 +106,21 @@ export default async function ListingPage({ params }: PageProps<"/[lang]/cars/[s
       : null;
 
   return (
-    <div className="container-page py-6 sm:py-8">
+    <div className={`container-page py-6 sm:py-8 ${showMobileBar ? "pb-28 lg:pb-8" : ""}`}>
+      {showMobileBar && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur lg:hidden">
+          <div className="mx-auto flex max-w-xl items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="tabular truncate text-lg font-bold text-navy-900">{formatPrice(l.priceEgp, locale)}</p>
+              <p className="truncate text-xs text-ink-3">{make} {model} {l.year}</p>
+            </div>
+            <a href={user ? "#contact" : signInHref} className={buttonClass("primary", "lg", "shrink-0")}>
+              <MessageSquare className="size-4" aria-hidden />
+              {user ? L.contactSeller : dict.nav.signIn}
+            </a>
+          </div>
+        </div>
+      )}
       {jsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />}
 
       <nav aria-label="Breadcrumb" className="mb-4 text-sm text-ink-3">
@@ -126,7 +141,7 @@ export default async function ListingPage({ params }: PageProps<"/[lang]/cars/[s
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_23rem] lg:grid-rows-[auto_1fr]">
         <div className="min-w-0 lg:col-start-1">
-          <Gallery images={data.images} alt={name} labels={{ noPhotos: L.noPhotos, photoOf: L.photoOf, prev: dict.common.previous, next: dict.common.nextPage }} />
+          <Gallery images={data.images} alt={name} labels={{ noPhotos: L.noPhotos, photoOf: L.photoOf, prev: dict.common.previous, next: dict.common.nextPage, fullscreen: L.fullscreen, close: dict.nav.close }} />
         </div>
 
         {/* One summary: after the gallery on mobile, sticky sidebar on desktop */}
@@ -178,7 +193,7 @@ export default async function ListingPage({ params }: PageProps<"/[lang]/cars/[s
       {similar.length > 0 && (
         <section className="mt-14" aria-labelledby="similar">
           <h2 id="similar" className="mb-5 text-xl font-bold">{L.similar}</h2>
-          <div className="grid grid-cols-1 gap-4 xs:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
             {similar.map((s) => (
               <ListingCard key={s.id} item={s} locale={locale} dict={dict} saved={similarSaved.has(s.id)} signedIn={!!user} />
             ))}
@@ -215,9 +230,15 @@ export default async function ListingPage({ params }: PageProps<"/[lang]/cars/[s
               {L.postedAt} {formatRelative(l.publishedAt, locale)}
             </p>
           )}
+          {l.status === "published" && (
+            <Link href={`/${locale}/verification`} className="mt-4 flex items-start gap-2 rounded-[var(--radius-md)] bg-success-50 px-3 py-2.5 text-sm text-success-700 hover:underline">
+              <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden />
+              <span>{L.reviewedNotice}</span>
+            </Link>
+          )}
         </div>
 
-        <div className="rounded-[var(--radius-lg)] border border-line bg-surface p-5">
+        <div id="contact" className="scroll-mt-24 rounded-[var(--radius-lg)] border border-line bg-surface p-5">
           {isOwner ? (
             <div className="flex flex-col gap-3">
               <p className="text-sm text-ink-2">{L.ownListing}</p>
@@ -265,7 +286,7 @@ export default async function ListingPage({ params }: PageProps<"/[lang]/cars/[s
               <UserRound className="size-5" />
             </span>
             <div className="min-w-0">
-              <p className="truncate font-semibold">{seller.name}</p>
+              <p className="truncate font-semibold"><bdi>{seller.name}</bdi></p>
               <p className="text-sm text-ink-3">
                 {seller.role === "dealer" ? dict.seller.dealer : dict.seller.individual} · {L.memberSince}{" "}
                 {formatDate(seller.createdAt, locale, { month: "long", year: "numeric" })}

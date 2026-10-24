@@ -36,7 +36,7 @@ export default async function MyListingsPage({ params }: PageProps<"/[lang]/acco
                   <Badge tone={statusTone(l.status)}>{dict.enums.status[l.status]}</Badge>
                   <span className="text-xs text-ink-3 tabular">{l.imageCount} {dict.listing.photos}</span>
                 </div>
-                <Link href={`/${locale}/cars/${l.slug}`} className="truncate font-semibold hover:underline">{l.title}</Link>
+                <Link href={`/${locale}/cars/${l.slug}`} className="truncate font-semibold hover:underline"><bdi>{l.title}</bdi></Link>
                 <p className="tabular text-sm text-ink-2">
                   {formatPrice(l.priceEgp, locale)} — {formatKm(l.mileageKm, locale)}
                 </p>

@@ -29,7 +29,7 @@ export default async function SellerPage({ params }: PageProps<"/[lang]/sellers/
       <div className="mb-8 flex items-center gap-4 rounded-[var(--radius-lg)] border border-line bg-surface p-5">
         <span className="grid size-14 place-items-center rounded-full bg-navy-900 text-white"><UserRound className="size-6" /></span>
         <div>
-          <h1 className="text-2xl font-bold">{seller.name}</h1>
+          <h1 className="text-2xl font-bold"><bdi>{seller.name}</bdi></h1>
           <p className="text-sm text-ink-3">
             {seller.role === "dealer" ? dict.seller.dealer : dict.seller.individual} — {dict.seller.memberSince} {formatDate(seller.createdAt, locale, { month: "long", year: "numeric" })}
           </p>
@@ -38,7 +38,7 @@ export default async function SellerPage({ params }: PageProps<"/[lang]/sellers/
       </div>
       <h2 className="mb-5 text-xl font-bold">{t(dict.seller.listings, { name: seller.name })}</h2>
       {items.length ? (
-        <div className="grid grid-cols-1 gap-4 xs:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
           {items.map((i) => <ListingCard key={i.id} item={i} locale={locale} dict={dict} saved={saved.has(i.id)} signedIn={!!user} />)}
         </div>
       ) : (

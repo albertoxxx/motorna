@@ -30,13 +30,13 @@ export default async function MessagesPage({ params }: PageProps<"/[lang]/accoun
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-3">
-                    <p className={cn("truncate", c.unread > 0 ? "font-bold" : "font-semibold")}>{c.otherName}</p>
+                    <p className={cn("truncate", c.unread > 0 ? "font-bold" : "font-semibold")}><bdi>{c.otherName}</bdi></p>
                     <span className="shrink-0 text-xs text-ink-3">{formatRelative(c.lastMessageAt, locale)}</span>
                   </div>
                   <p className="truncate text-sm text-ink-3">
-                    {c.isBuyer ? M.sellerLabel : M.buyer} — {c.listingTitle}
+                    {c.isBuyer ? M.sellerLabel : M.buyer} — <bdi>{c.listingTitle}</bdi>
                   </p>
-                  <p className={cn("truncate text-sm", c.unread > 0 ? "text-ink" : "text-ink-2")}>{c.lastMsg}</p>
+                  <p dir="auto" className={cn("truncate text-start text-sm", c.unread > 0 ? "text-ink" : "text-ink-2")}>{c.lastMsg}</p>
                 </div>
                 {c.unread > 0 && <span className="tabular rounded-full bg-brand-600 px-2 py-0.5 text-xs font-semibold text-white">{c.unread}</span>}
               </Link>

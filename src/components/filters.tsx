@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
-import { SlidersHorizontal } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { SlidersHorizontal, X } from "lucide-react";
+import { cn } from "@/lib/cn";
 import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/dictionaries/ar";
 import type { SearchFilters } from "@/lib/search-params";
@@ -10,7 +11,6 @@ import { SORTS, toQueryString } from "@/lib/search-params";
 import { BODIES, CONDITIONS, FUELS, TRANSMISSIONS } from "@/lib/validation";
 import { Input, Select } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
 import type { CityOption, TaxonomyMake, TaxonomyModel } from "./search-panel";
 
 type Props = {
@@ -148,7 +148,7 @@ function FilterForm({ locale, dict, filters, makes, models, cities, onDone }: Pr
           </Select>
         </label>
       </div>
-      <div className="flex gap-2 pt-2">
+      <div className="sticky bottom-0 -mx-4 flex gap-2 border-t border-line bg-surface px-4 py-3 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:pt-2">
         <Button type="submit" className="flex-1" loading={pending}>{s.showResults}</Button>
         <Button type="button" variant="ghost" onClick={clear}>{dict.common.clear}</Button>
       </div>
@@ -156,39 +156,82 @@ function FilterForm({ locale, dict, filters, makes, models, cities, onDone }: Pr
   );
 }
 
-export function FiltersSidebar(props: Props) {
+const OPEN_EVENT = "motorna:open-filters";
+
+/**
+ * One filter form for every screen size: inline sticky sidebar from 1024px,
+ * full-screen drawer below it (opened by <FiltersButton>). Never rendered twice.
+ */
+export function FiltersPanel(props: Props) {
+  const [open, setOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const onOpen = () => {
+      triggerRef.current = document.activeElement as HTMLElement;
+      setOpen(true);
+    };
+    window.addEventListener(OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_EVENT, onOpen);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    panelRef.current?.querySelector<HTMLElement>("input, select, button")?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      document.removeEventListener("keydown", onKey);
+      triggerRef.current?.focus();
+    };
+  }, [open]);
+
   return (
-    <aside className="hidden lg:block" aria-label={props.dict.search.filters}>
-      <div className="sticky top-20 rounded-[var(--radius-lg)] border border-line bg-surface p-5">
-        <FilterForm key={JSON.stringify(props.filters)} {...props} />
+    <aside aria-label={props.dict.search.filters} className={cn(open ? "fixed inset-0 z-50 flex flex-col bg-surface lg:static lg:z-auto lg:block lg:bg-transparent" : "hidden lg:block")}>
+      <div
+        ref={panelRef}
+        role={open ? "dialog" : undefined}
+        aria-modal={open || undefined}
+        aria-labelledby={open ? "filters-title" : undefined}
+        className={cn(open ? "flex h-full flex-col lg:block lg:h-auto" : "", "lg:sticky lg:top-20 lg:rounded-[var(--radius-lg)] lg:border lg:border-line lg:bg-surface lg:p-5")}
+      >
+        {open && (
+          <div className="flex items-center justify-between border-b border-line px-4 py-3 lg:hidden">
+            <h2 id="filters-title" className="text-lg font-semibold">{props.dict.search.filters}</h2>
+            <button onClick={() => setOpen(false)} aria-label={props.dict.nav.close} className="rounded p-2 text-ink-3 hover:bg-canvas hover:text-ink">
+              <X className="size-5" />
+            </button>
+          </div>
+        )}
+        <div className={cn(open && "flex-1 overflow-y-auto px-4 py-4 lg:overflow-visible lg:p-0")}>
+          <FilterForm key={JSON.stringify(props.filters)} {...props} onDone={() => setOpen(false)} />
+        </div>
       </div>
     </aside>
   );
 }
 
-export function FiltersDrawerButton(props: Props & { activeCount: number }) {
-  const [open, setOpen] = useState(false);
+export function FiltersButton({ label, activeCount }: { label: string; activeCount: number }) {
   return (
-    <>
-      <Button variant="secondary" onClick={() => setOpen(true)} className="lg:hidden">
-        <SlidersHorizontal className="size-4" />
-        {props.dict.search.filters}
-        {props.activeCount > 0 && <span className="tabular rounded-full bg-navy-900 px-1.5 text-xs text-white">{props.activeCount}</span>}
-      </Button>
-      <Dialog open={open} onClose={() => setOpen(false)} title={props.dict.search.filters} closeLabel={props.dict.nav.close} variant="drawer">
-        <FilterForm {...props} onDone={() => setOpen(false)} />
-      </Dialog>
-    </>
+    <Button variant="secondary" onClick={() => window.dispatchEvent(new Event(OPEN_EVENT))} className="lg:hidden" aria-haspopup="dialog">
+      <SlidersHorizontal className="size-4" />
+      {label}
+      {activeCount > 0 && <span className="tabular rounded-full bg-navy-900 px-1.5 text-xs text-white">{activeCount}</span>}
+    </Button>
   );
 }
 
 export function SortSelect({ locale, filters, dict }: Pick<Props, "locale" | "filters" | "dict">) {
   const router = useRouter();
   return (
-    <label className="flex items-center gap-2 text-sm text-ink-2">
+    <label className="flex flex-1 items-center gap-2 text-sm text-ink-2 sm:flex-none">
       <span className="hidden sm:inline">{dict.search.sort}</span>
       <Select
-        className="h-10 w-auto min-w-44"
+        className="h-10 w-full sm:w-auto sm:min-w-44"
         value={filters.sort}
         onChange={(e) => router.push(`/${locale}/cars${toQueryString({ ...filters, sort: e.target.value as SearchFilters["sort"], page: 1 })}`)}
         aria-label={dict.search.sort}

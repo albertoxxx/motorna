@@ -38,13 +38,13 @@ export default async function ReportsPage({ params, searchParams }: PageProps<"/
                   <Badge tone="danger">{dict.enums.reportReason[r.reason]}</Badge>
                   <span className="text-xs text-ink-3">{formatRelative(r.createdAt, locale)}</span>
                 </div>
-                {r.listingSlug && <Link href={`/${locale}/cars/${r.listingSlug}`} className="font-semibold hover:underline">{r.listingTitle}</Link>}
-                <p className="text-sm text-ink-2">{r.details || "—"}</p>
+                {r.listingSlug && <Link href={`/${locale}/cars/${r.listingSlug}`} className="font-semibold hover:underline"><bdi>{r.listingTitle}</bdi></Link>}
+                <p dir="auto" className="text-sm text-ink-2">{r.details || "—"}</p>
                 <p className="text-xs text-ink-3">
-                  {A.submittedBy} {r.reporterName}
-                  {r.reportedUserName && <> — {dict.listing.seller}: {r.reportedUserName}{r.reportedSuspendedAt && <> ({A.suspended})</>}</>}
+                  {A.submittedBy} <bdi>{r.reporterName}</bdi>
+                  {r.reportedUserName && <> — {dict.listing.seller}: <bdi>{r.reportedUserName}</bdi>{r.reportedSuspendedAt && <> ({A.suspended})</>}</>}
                 </p>
-                {r.resolutionNote && <p className="text-xs text-ink-3">{A.resolutionNote}: {r.resolutionNote}</p>}
+                {r.resolutionNote && <p className="text-xs text-ink-3">{A.resolutionNote}: <bdi>{r.resolutionNote}</bdi></p>}
               </div>
               {(r.status === "open" || r.status === "reviewing") && (
                 <ReportActions

@@ -21,7 +21,7 @@ export default async function FavoritesPage({ params }: PageProps<"/[lang]/accou
       {items.length === 0 ? (
         <EmptyState icon={<Heart className="size-8" />} title={dict.account.favoritesEmptyTitle} body={dict.account.favoritesEmptyBody} action={<ButtonLink href={`/${locale}/cars`} variant="secondary">{dict.nav.browse}</ButtonLink>} />
       ) : (
-        <div className="grid grid-cols-1 gap-4 xs:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
           {items.map((item) => <ListingCard key={item!.id} item={item!} locale={locale} dict={dict} saved signedIn />)}
         </div>
       )}

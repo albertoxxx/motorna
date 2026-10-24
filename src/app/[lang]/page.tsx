@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { ShieldCheck, Flag, BanknoteX, ArrowUpRight } from "lucide-react";
+import { ShieldCheck, Flag, BanknoteX, ArrowUpRight, Plus, Sparkles } from "lucide-react";
+import { features } from "@/lib/features";
 import { resolveLocale } from "@/i18n/server";
 import { t } from "@/i18n/t";
 import { getCurrentUser } from "@/server/session";
@@ -40,6 +41,8 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
     budgetBandCounts(BANDS),
   ]);
   const saved = await favoriteIds(user?.id, latest.map((l) => l.id));
+  // Quick links: makes that actually have listings, most first.
+  const quickMakes = popular.filter((m) => m.count > 0).slice(0, 6);
   const p = (s: string) => `/${locale}${s}`;
   const bandLabel = ([min, max]: [number, number | null]) =>
     min === 0
@@ -52,17 +55,16 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
 
   return (
     <>
-      {/* Hero */}
-      <section className="relative bg-navy-900 text-white">
-        <div className="container-page pb-28 pt-14 sm:pt-20 md:pb-32">
-          <h1 className="max-w-3xl text-[2.6rem] font-bold leading-[1.1] tracking-tight sm:text-5xl md:text-[3.6rem]">{h.heroTitle}</h1>
-          <p className="mt-5 max-w-xl text-lg leading-relaxed text-white/70">{h.heroBody}</p>
-        </div>
-        <div className="container-page absolute inset-x-0 -bottom-24 md:-bottom-16">
-          <div className="rounded-[var(--radius-lg)] border border-line bg-surface p-4 text-ink shadow-[0_24px_48px_-24px_rgba(16,24,40,0.35)] sm:p-5">
-            <div className="mb-4 flex items-baseline justify-between gap-4">
-              <h2 className="text-base font-semibold">{h.searchTitle}</h2>
-              <p className="text-sm text-ink-3">
+      {/* Hero: search is the focal point and sits in normal flow, so nothing overlaps on phones. */}
+      <section className="bg-navy-900 text-white">
+        <div className="container-page pb-10 pt-10 sm:pb-14 sm:pt-16">
+          <h1 className="max-w-3xl text-[2.25rem] font-bold leading-[1.1] tracking-tight sm:text-5xl md:text-[3.4rem]">{h.heroTitle}</h1>
+          <p className="mt-4 max-w-xl text-base leading-relaxed text-white/70 sm:text-lg">{h.heroBody}</p>
+
+          <div className="mt-8 rounded-[var(--radius-lg)] bg-surface p-4 text-ink shadow-[0_24px_48px_-24px_rgba(0,0,0,0.5)] sm:p-6">
+            <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <h2 className="text-lg font-semibold">{h.searchTitle}</h2>
+              <p className="text-sm text-ink-3" aria-live="polite">
                 <span className="tabular font-semibold text-ink">{formatNumber(total, locale)}</span> {h.searchCount}
               </p>
             </div>
@@ -73,11 +75,29 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
               cities={cities}
               labels={{ budget: h.budget, budgetMax: h.budgetMax, make: h.make, model: h.model, yearFrom: h.yearFrom, location: h.location, search: h.search, any: dict.common.any }}
             />
+            {features.assistant && (
+              <Link href={p("/assistant")} className="mt-4 flex items-center gap-3 rounded-[var(--radius-md)] border border-brand-600/25 bg-brand-50 px-4 py-3 text-sm font-medium text-navy-800 hover:border-brand-600/50">
+                <Sparkles className="size-4 text-brand-600" aria-hidden />
+                {h.assistantCta}
+              </Link>
+            )}
           </div>
+
+          {quickMakes.length > 0 && (
+            <nav aria-label={h.makesTitle} className="mt-5 flex flex-wrap items-center gap-2">
+              {quickMakes.map((m) => (
+                <Link key={m.slug} href={p(`/cars?make=${m.slug}`)} className="rounded-full border border-white/20 px-3.5 py-1.5 text-sm text-white/85 hover:border-white/50 hover:text-white">
+                  {locale === "ar" ? m.nameAr : m.nameEn}
+                </Link>
+              ))}
+              <Link href={p("/sell")} className="ms-auto inline-flex items-center gap-1.5 text-sm font-medium text-white hover:underline">
+                <Plus className="size-4" aria-hidden />
+                {h.heroSellLink}
+              </Link>
+            </nav>
+          )}
         </div>
       </section>
-
-      <div className="h-32 md:h-24" aria-hidden />
 
       {/* Latest */}
       <section className="container-page py-10" aria-labelledby="latest">
@@ -108,9 +128,15 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
           <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
             {popular.map((m) => (
               <li key={m.slug}>
-                <Link href={p(`/cars?make=${m.slug}`)} className="flex h-full items-center justify-between gap-2 rounded-[var(--radius-md)] border border-line bg-surface px-4 py-3.5 hover:border-line-strong">
+                <Link
+                  href={p(`/cars?make=${m.slug}`)}
+                  aria-label={`${locale === "ar" ? m.nameAr : m.nameEn}: ${t(h.carsCount, { n: formatNumber(m.count, locale) })}`}
+                  className="flex h-full items-center justify-between gap-2 rounded-[var(--radius-md)] border border-line bg-surface px-4 py-3.5 hover:border-line-strong"
+                >
                   <span className="font-semibold">{locale === "ar" ? m.nameAr : m.nameEn}</span>
-                  <span className="tabular text-sm text-ink-3">{formatNumber(m.count, locale)}</span>
+                  <span className={`tabular rounded-full px-2 py-0.5 text-xs ${m.count ? "bg-navy-900/[0.06] text-ink-2" : "text-ink-3"}`} aria-hidden>
+                    {formatNumber(m.count, locale)}
+                  </span>
                 </Link>
               </li>
             ))}
@@ -121,9 +147,15 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
           <ul className="flex flex-col divide-y divide-line overflow-hidden rounded-[var(--radius-lg)] border border-line bg-surface">
             {BANDS.map((b, i) => (
               <li key={i}>
-                <Link href={bandHref(b)} className="flex items-center justify-between px-4 py-4 hover:bg-canvas">
+                <Link
+                  href={bandHref(b)}
+                  aria-label={`${bandLabel(b)}: ${t(h.carsCount, { n: formatNumber(bandCounts[i], locale) })}`}
+                  className="flex items-center justify-between px-4 py-4 hover:bg-canvas"
+                >
                   <span className="tabular font-medium">{bandLabel(b)}</span>
-                  <span className="tabular text-sm text-ink-3">{formatNumber(bandCounts[i], locale)}</span>
+                  <span className={`tabular rounded-full px-2 py-0.5 text-xs ${bandCounts[i] ? "bg-navy-900/[0.06] text-ink-2" : "text-ink-3"}`} aria-hidden>
+                    {formatNumber(bandCounts[i], locale)}
+                  </span>
                 </Link>
               </li>
             ))}
@@ -137,7 +169,7 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
         <ol className="grid gap-8 md:grid-cols-3">
           {h.howSteps.map((s, i) => (
             <li key={s.title} className="flex gap-4">
-              <span className="tabular grid size-9 shrink-0 place-items-center rounded-full border-2 border-navy-900 text-sm font-bold">{i + 1}</span>
+              <span className="tabular grid size-9 shrink-0 place-items-center rounded-full border-2 border-navy-900 text-sm font-bold" aria-hidden>{i + 1}</span>
               <div>
                 <h3 className="font-semibold">{s.title}</h3>
                 <p className="mt-1.5 leading-relaxed text-ink-2">{s.body}</p>

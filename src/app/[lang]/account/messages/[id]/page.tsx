@@ -31,7 +31,7 @@ export default async function ThreadPage({ params }: PageProps<"/[lang]/account/
       <div className="rounded-[var(--radius-lg)] border border-line bg-surface">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-4">
           <div>
-            <h1 className="font-bold">{other?.name}</h1>
+            <h1 className="font-bold"><bdi>{other?.name}</bdi></h1>
             <p className="text-sm text-ink-3">
               {M.about}{" "}
               {available ? (
@@ -56,7 +56,7 @@ export default async function ThreadPage({ params }: PageProps<"/[lang]/account/
                   {m.body}
                 </div>
                 <span className="text-[11px] text-ink-3">
-                  {mine ? M.you : other?.name} — {formatDate(m.createdAt, locale, { dateStyle: "short", timeStyle: "short" })}
+                  {mine ? M.you : <bdi>{other?.name}</bdi>} — {formatDate(m.createdAt, locale, { dateStyle: "short", timeStyle: "short" })}
                 </span>
               </li>
             );

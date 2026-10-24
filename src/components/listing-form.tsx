@@ -210,7 +210,17 @@ export function ListingForm({
 
   return (
     <div className="grid gap-8 lg:grid-cols-[14rem_1fr]">
-      <ol className="flex gap-2 overflow-x-auto lg:flex-col lg:gap-1" aria-label="Steps">
+      {/* Phones/tablets: compact progress. Desktop: full step list. */}
+      <div className="lg:hidden" aria-live="polite">
+        <div className="mb-2 flex items-baseline justify-between gap-3 text-sm">
+          <span className="font-semibold text-ink">{steps[step]}</span>
+          <span className="tabular text-ink-3">{S.stepOf.replace("{i}", String(step + 1)).replace("{n}", String(steps.length))}</span>
+        </div>
+        <div className="h-1.5 overflow-hidden rounded-full bg-line" role="progressbar" aria-valuemin={1} aria-valuemax={steps.length} aria-valuenow={step + 1} aria-label={steps[step]}>
+          <div className="h-full rounded-full bg-brand-600 transition-[width]" style={{ width: `${((step + 1) / steps.length) * 100}%` }} />
+        </div>
+      </div>
+      <ol className="hidden gap-1 lg:flex lg:flex-col" aria-label={S.title}>
         {steps.map((label, i) => {
           const reachable = i <= step || (i >= 2 && !!id);
           return (

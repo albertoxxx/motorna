@@ -180,6 +180,19 @@ try {
   await go(AD.page, "/en/admin/reports");
   assert((await AD.page.content()).includes(trim), "report reached the admin queue");
 
+  // Regression checks from the UI audit
+  await A.page.setViewport({ width: 1280, height: 900 });
+  await go(A.page, "/en");
+  const logoText = await A.page.$eval("header a[href='/en']", (a) => a.textContent.trim());
+  assert(logoText === "MOTORNA", `logo text reads "MOTORNA" (got "${logoText}")`);
+  await go(A.page, "/en/cars?make=toyota");
+  const forms = await A.page.$$eval("input[placeholder*='Corolla']", (els) => els.length);
+  assert(forms === 1, "exactly one filter form on the cars page (desktop)");
+  const chip = await A.page.$("a[aria-label^='Remove filter']");
+  assert(!!chip, "active filter shows a removable chip");
+  await Promise.all([A.page.waitForNavigation({ waitUntil: "networkidle0" }), chip.click()]);
+  assert(!A.page.url().includes("make="), "removing a chip clears that filter");
+
   // Arabic RTL + mobile
   await A.page.setViewport({ width: 390, height: 844, isMobile: true });
   await go(A.page, "/ar");
@@ -187,6 +200,15 @@ try {
   const overflow = await A.page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
   assert(!overflow, "no horizontal overflow at 390px (ar home)");
   await shot(A.page, "e2e-home-ar-mobile");
+  const h1Visible = await A.page.$eval("h1", (h) => {
+    const r = h.getBoundingClientRect();
+    const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return r.height > 0 && (top === h || h.contains(top));
+  });
+  assert(h1Visible, "home headline is visible on phones (not covered by the search box)");
+  await go(A.page, "/ar/cars");
+  const mobileForms = await A.page.$$eval("input[placeholder*='كورولا']", (els) => els.filter((e) => e.getClientRects().length).length);
+  assert(mobileForms === 0, "filter form is hidden until the drawer opens (phone)");
   await go(A.page, slug.replace("/en/", "/ar/"));
   const overflow2 = await A.page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
   assert(!overflow2, "no horizontal overflow at 390px (ar listing)");
