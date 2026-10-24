@@ -3,7 +3,7 @@ import { normalizeEgyptPhone, type ValidationKey } from "@/lib/validation";
 
 /* MOTORNA Care — pure rules shared by server actions, pages and tests. See docs/CARE.md. */
 
-export const CENTER_STATUSES = ["applied", "under_review", "approved", "suspended", "revoked", "rejected"] as const;
+export const CENTER_STATUSES = ["draft", "applied", "under_review", "changes_requested", "approved", "suspended", "revoked", "rejected"] as const;
 export type CenterStatus = (typeof CENTER_STATUSES)[number];
 
 export const CARE_CATEGORIES = [
@@ -21,6 +21,22 @@ export const CARE_CATEGORIES = [
 export type CareCategory = (typeof CARE_CATEGORIES)[number];
 
 export const VEHICLE_TYPES = ["passenger", "suv_4x4", "commercial", "electric_hybrid"] as const;
+export const EQUIPMENT_KINDS = [
+  "obd_scanner",
+  "paint_thickness_gauge",
+  "lift",
+  "wheel_alignment",
+  "tire_changer",
+  "ac_service_station",
+  "battery_tester",
+  "brake_tester",
+  "emissions_analyzer",
+  "other",
+] as const;
+export type EquipmentKind = (typeof EQUIPMENT_KINDS)[number];
+/** Equipment a pre-purchase inspection center must declare before submitting. */
+export const INSPECTION_EQUIPMENT: EquipmentKind[] = ["obd_scanner", "paint_thickness_gauge", "lift"];
+
 export const CREDENTIAL_KINDS = ["commercial_register", "tax_card", "brand_authorization", "other"] as const;
 export const STAFF_ROLES = ["owner", "manager", "technician"] as const;
 export type StaffRole = (typeof STAFF_ROLES)[number];
@@ -40,13 +56,17 @@ export function applicableCriteria(offersInspection: boolean): CenterCriterion[]
   return CENTER_CRITERIA.filter((c) => c !== "inspection_equipment" || offersInspection);
 }
 
-export type AdminCenterAction = "startReview" | "approve" | "reject" | "suspend" | "reinstate" | "revoke";
+export type AdminCenterAction = "startReview" | "requestChanges" | "approve" | "reject" | "suspend" | "reinstate" | "revoke";
 
-/** Admin-only status machine. Centers can only resubmit after a rejection (see ownerResubmit). */
+/**
+ * Admin-only status machine. "applied" is shown to people as "Submitted".
+ * Centers move themselves only from draft / changes_requested / rejected to submitted (see submitTransition).
+ */
 const ADMIN_TRANSITIONS: Record<AdminCenterAction, { from: CenterStatus[]; to: CenterStatus; needsReason: boolean }> = {
   startReview: { from: ["applied"], to: "under_review", needsReason: false },
+  requestChanges: { from: ["applied", "under_review"], to: "changes_requested", needsReason: true },
   approve: { from: ["under_review"], to: "approved", needsReason: false },
-  reject: { from: ["applied", "under_review"], to: "rejected", needsReason: true },
+  reject: { from: ["applied", "under_review", "changes_requested"], to: "rejected", needsReason: true },
   suspend: { from: ["approved"], to: "suspended", needsReason: true },
   reinstate: { from: ["suspended"], to: "approved", needsReason: false },
   revoke: { from: ["approved", "suspended"], to: "revoked", needsReason: true },
@@ -58,6 +78,34 @@ export function nextCenterStatus(from: CenterStatus, action: AdminCenterAction):
 }
 export const actionNeedsReason = (a: AdminCenterAction) => ADMIN_TRANSITIONS[a].needsReason;
 export const ADMIN_CENTER_ACTIONS = Object.keys(ADMIN_TRANSITIONS) as AdminCenterAction[];
+
+/** Statuses from which the center's owner may (re)submit the application. */
+export const SUBMITTABLE: CenterStatus[] = ["draft", "changes_requested", "rejected"];
+/** An application that is still open (one per owner at a time). */
+export const OPEN_APPLICATION: CenterStatus[] = ["draft", "applied", "under_review", "changes_requested"];
+/** Waiting for an admin. */
+export const IN_QUEUE: CenterStatus[] = ["applied", "under_review"];
+
+export type SubmissionGap = "services" | "equipment" | "technicians" | "documents";
+
+/** What the applicant still has to add before submitting. Empty array = ready to submit. */
+export function submissionGaps(input: {
+  services: { category: string; active: boolean }[];
+  equipment: { kind: string }[];
+  technicians: { active: boolean }[];
+  credentials: { kind: string; reviewState: string }[];
+}): SubmissionGap[] {
+  const gaps: SubmissionGap[] = [];
+  const active = input.services.filter((s) => s.active);
+  if (active.length === 0) gaps.push("services");
+  if (active.some((s) => s.category === "pre_purchase_inspection") && !INSPECTION_EQUIPMENT.every((k) => input.equipment.some((e) => e.kind === k))) {
+    gaps.push("equipment");
+  }
+  if (!input.technicians.some((t) => t.active)) gaps.push("technicians");
+  const has = (k: string) => input.credentials.some((c) => c.kind === k && c.reviewState !== "rejected");
+  if (!has("commercial_register") || !has("tax_card")) gaps.push("documents");
+  return gaps;
+}
 
 /** What still blocks approval. Empty array = the admin may approve. */
 export function approvalBlockers(input: {
@@ -82,6 +130,18 @@ export const isPubliclyVisible = (s: CenterStatus) => s === "approved";
 export const identityLocked = (s: CenterStatus) => s === "approved" || s === "suspended" || s === "revoked";
 /** A center profile is editable by its staff except after revocation. */
 export const profileEditable = (s: CenterStatus) => s !== "revoked";
+
+/* ----------------------------- Directory ----------------------------- */
+
+export const DIRECTORY_SORTS = ["name", "recent"] as const;
+export type DirectorySort = (typeof DIRECTORY_SORTS)[number];
+export const DIRECTORY_PAGE_SIZE = 12;
+
+/** Today's opening hours in Cairo, for directory cards. weekday: 0 = Sunday. */
+export function cairoWeekday(now = new Date()): number {
+  const name = new Intl.DateTimeFormat("en-US", { timeZone: "Africa/Cairo", weekday: "short" }).format(now);
+  return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(name);
+}
 
 export function canManageCenter(role: StaffRole | null | undefined) {
   return role === "owner" || role === "manager";
@@ -156,3 +216,20 @@ export const centerHoursSchema = z
   .max(7)
   .refine((rows) => rows.every((r) => r.opens < r.closes), { message: "hours" })
   .refine((rows) => new Set(rows.map((r) => r.weekday)).size === rows.length, { message: "hours" });
+
+export const equipmentSchema = z.object({
+  kind: z.enum(EQUIPMENT_KINDS, { error: "required" }),
+  details: z.preprocess((v) => (typeof v === "string" ? v.trim() || undefined : undefined), z.string().max(200, { error: "equipmentDetails" }).optional()),
+});
+
+export const technicianSchema = z.object({
+  fullName: text(3, 80, "technicianName"),
+  specialty: optional(80),
+  yearsExperience: z.preprocess(
+    (v) => (v === "" || v == null ? undefined : typeof v === "string" ? Number(v) : v),
+    z.number({ error: "technicianYears" }).int({ error: "technicianYears" }).min(0, { error: "technicianYears" }).max(60, { error: "technicianYears" }).optional(),
+  ),
+  certifications: optional(300),
+});
+
+export const reviewNoteSchema = z.string().trim().min(1).max(2000);

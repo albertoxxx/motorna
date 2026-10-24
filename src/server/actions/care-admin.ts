@@ -13,6 +13,7 @@ import {
   actionNeedsReason,
   approvalBlockers,
   nextCenterStatus,
+  reviewNoteSchema,
   type AdminCenterAction,
   type CenterCriterion,
 } from "@/lib/care";
@@ -124,13 +125,30 @@ export async function changeCenterStatus(centerId: string, action: string, reaso
       .set({
         status: to,
         statusReason: note,
-        ...(to === "approved" && act === "approve" ? { approvedAt: new Date(), approvedById: a.admin.id } : {}),
+        ...(act === "approve" ? { approvedAt: new Date(), approvedById: a.admin.id } : {}),
+        ...(act === "approve" || act === "reinstate" ? { lastVerifiedAt: new Date() } : {}),
       })
       .where(and(eq(C.id, centerId), eq(C.status, c.status)));
     await audit(a.admin.id, `center.${act}`, "service_center", centerId, { from: c.status, to, reason: note }, tx);
   });
   refresh(c.slug);
   return ok({ status: to });
+}
+
+/** Internal reviewer note. Never shown to the center; there is no edit or delete path. */
+export async function addReviewNote(centerId: string, body: string): Promise<ActionResult<null>> {
+  const a = await requireAdminAction();
+  if (a.error) return fail(a.error);
+  const parsed = reviewNoteSchema.safeParse(body);
+  if (!parsed.success) return fail("validation", { note: "required" });
+  const [c] = await db.select({ slug: C.slug }).from(C).where(eq(C.id, centerId));
+  if (!c) return fail("notFound");
+  await db.transaction(async (tx) => {
+    await tx.insert(schema.centerReviewNotes).values({ centerId, authorId: a.admin.id, body: parsed.data });
+    await audit(a.admin.id, "center.note", "service_center", centerId, {}, tx);
+  });
+  refresh(c.slug);
+  return ok(null);
 }
 
 async function isStaff(userId: string, centerId: string) {

@@ -46,7 +46,8 @@ async function clickText(page, t, selector = "button, a") {
     (sel, x) => [...document.querySelectorAll(sel)].find((e) => e.textContent?.trim() === x && !e.disabled && e.getClientRects().length > 0),
     {}, selector, t,
   );
-  await h.asElement().click();
+  // DOM click: toasts can overlap the viewport edge where puppeteer would click.
+  await h.asElement().evaluate((el) => { el.scrollIntoView({ block: "center" }); el.click(); });
 }
 async function signUp(page, u) {
   await go(page, "/en/auth/sign-up");
@@ -72,19 +73,22 @@ try {
   await go(O.page, "/en/care/apply");
   await O.page.type("#nameAr", nameAr);
   await O.page.type("#nameEn", nameEn);
+  await O.page.type("#area", "Smouha");
   await O.page.type("#address", "15 Fawzy Moaz St, Smouha");
   await O.page.type("#phone", "03 4251234");
   await O.page.click("input[name=vehicleTypes][value=passenger]");
   // Submitting without accepting the terms is refused with a message
-  await clickText(O.page, "Submit application");
+  await clickText(O.page, "Create application draft");
   await waitText(O.page, "You need to agree before submitting");
   ok("application requires accepting the terms");
   await O.page.click("input[name=acceptTerms]");
-  await clickText(O.page, "Submit application");
+  await clickText(O.page, "Create application draft");
   await O.page.waitForFunction(() => /\/en\/center\/[a-z0-9-]+$/.test(location.pathname), { timeout: 30000 });
-  await waitText(O.page, "New application");
+  await waitText(O.page, "Application checklist");
   const dashUrl = O.page.url();
-  ok("application created; owner lands on the center dashboard as 'New application'");
+  ok("draft created; owner lands on the dashboard with the application checklist");
+  const submitDisabled = await O.page.$$eval("button", (bs) => bs.find((b) => b.textContent.trim() === "Submit for review")?.disabled);
+  assert(submitDisabled === true, "submit is disabled while the checklist is incomplete");
 
   // Not public yet
   const P = await newCtx();
@@ -115,6 +119,22 @@ try {
   await waitText(O.page, "Saved");
   ok("owner saved opening hours");
 
+  // Equipment (required for inspection centers)
+  for (const kind of ["obd_scanner", "paint_thickness_gauge", "lift"]) {
+    await O.page.select("#eq-kind", kind);
+    await O.page.$eval("#eq-kind", (el) => el.closest("form").querySelector("button[type=submit]").click());
+    await new Promise((r) => setTimeout(r, 900));
+  }
+  await waitText(O.page, "Paint-thickness gauge");
+  ok("owner declared the core inspection equipment");
+  // Technician
+  await O.page.type("#t-name", "Mahmoud Adel");
+  await O.page.type("#t-spec", "Diagnostics");
+  await O.page.type("#t-years", "8");
+  await O.page.$eval("#t-name", (el) => el.closest("form").querySelector("button[type=submit]").click());
+  await waitText(O.page, "Mahmoud Adel");
+  ok("owner added a responsible technician");
+
   // Documents
   for (const kind of ["commercial_register", "tax_card"]) {
     await O.page.select("#doc-kind", kind);
@@ -129,6 +149,12 @@ try {
   ok("owner uploaded commercial register and tax card (private)");
   const own = await O.page.evaluate(async (h) => (await fetch(h)).status, docHref);
   assert(own === 200, "owner can open their own document");
+
+  // Submit
+  await O.page.waitForFunction(() => [...document.querySelectorAll("button")].some((b) => b.textContent.trim() === "Submit for review" && !b.disabled));
+  await clickText(O.page, "Submit for review");
+  await waitText(O.page, "waiting for review");
+  ok("complete application submitted for review");
 
   // Outsider can't read documents or reach admin
   const X = await newCtx();
@@ -153,8 +179,19 @@ try {
   await waitText(A.page, "Approval criteria");
   const approveDisabled = await A.page.$$eval("button", (bs) => bs.find((b) => b.textContent.trim() === "Approve center")?.disabled ?? true);
   assert(approveDisabled, "approve is unavailable before review starts / blockers cleared");
+  await A.page.waitForSelector("textarea#center-reason");
+  await A.page.type("textarea#center-reason", "Please add your landline number to the profile.");
+  await clickText(A.page, "Request changes");
+  await waitText(A.page, "Changes requested");
+  ok("admin requested changes with a message");
+  await O.page.reload({ waitUntil: "networkidle0" });
+  assert((await text(O.page)).includes("Please add your landline number"), "owner sees the moderator's message");
+  await clickText(O.page, "Submit for review");
+  await waitText(O.page, "waiting for review");
+  ok("owner resubmitted after changes");
+  await A.page.reload({ waitUntil: "networkidle0" });
   await clickText(A.page, "Start review");
-  await waitText(A.page, "In review");
+  await waitText(A.page, "Under review");
   for (let i = 0; i < 2; i++) {
     await clickText(A.page, "Accept");
     await new Promise((r) => setTimeout(r, 1200));
@@ -176,12 +213,22 @@ try {
   await A.page.waitForFunction(() => !document.body.innerText.includes("Approve center"));
   assert((await text(A.page)).includes("Approved"), "admin approved the center after all checks");
   assert((await text(A.page)).includes("center.approve"), "approval is recorded in the center history");
+  await A.page.type("textarea[aria-label='Add note']", "Visited on Sunday; equipment present.");
+  await clickText(A.page, "Add note");
+  await waitText(A.page, "Visited on Sunday");
+  ok("admin added an internal note");
+  await O.page.reload({ waitUntil: "networkidle0" });
+  assert(!(await text(O.page)).includes("Visited on Sunday"), "internal note is not visible to the center");
 
   // Public
   await go(P.page, "/en/care");
   assert((await text(P.page)).includes(nameEn), "approved center appears in the English directory");
   await go(P.page, "/en/care?category=oil_change");
   assert(!(await text(P.page)).includes(nameEn), "category filter excludes centers without that service");
+  await go(P.page, "/en/care?city=alexandria&area=Smouha&category=pre_purchase_inspection");
+  assert((await text(P.page)).includes(nameEn), "governorate + area + service filters find the center");
+  await go(P.page, "/en/care?city=alexandria&area=Sporting");
+  assert(!(await text(P.page)).includes(nameEn), "area filter excludes other areas");
   await P.page.setViewport({ width: 390, height: 844, isMobile: true });
   await go(P.page, "/ar/care");
   assert((await text(P.page)).includes(nameAr), "Arabic directory shows the Arabic name");
@@ -190,7 +237,9 @@ try {
   await go(P.page, href);
   const detail = await text(P.page);
   assert(detail.includes("فحص شامل قبل الشراء") && detail.includes("1,500"), "center page lists the service and its price");
-  assert(detail.includes("معتمد من موتورنا"), "center page shows the approval date");
+  assert(detail.includes("آخر مراجعة"), "center page shows the latest review date");
+  assert(detail.includes("مش ترخيص حكومي"), "center page distinguishes MOTORNA review from government licensing");
+  assert(!detail.includes("Mahmoud Adel"), "technician names are not public");
   assert(!(await P.page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)), "no horizontal overflow at 390px (ar center page)");
   if (SHOTS) await P.page.screenshot({ path: path.join(SHOTS, "care-center-ar-mobile.png"), fullPage: true });
 

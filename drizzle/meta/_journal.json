@@ -29,6 +29,13 @@
       "when": 1792879526593,
       "tag": "0003_care_centers",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792881482945,
+      "tag": "0004_care_workflow",
+      "breakpoints": true
     }
   ]
 }

@@ -49,7 +49,7 @@ END $$;
 
 COMMIT;
 
-${migrationsOnly ? "SELECT (SELECT count(*) FROM drizzle.__drizzle_migrations) AS migrations_applied, (SELECT string_agg(table_name, ', ' ORDER BY table_name) FROM information_schema.tables WHERE table_schema = 'public' AND (table_name LIKE 'center%' OR table_name = 'service_centers')) AS care_tables, (SELECT count(*) FROM pg_trigger WHERE tgname LIKE 'audit_logs_no_%') AS audit_guards, (SELECT count(*) FROM listings) AS listings_kept;" : "SELECT (SELECT count(*) FROM vehicle_makes) AS makes, (SELECT count(*) FROM vehicle_models) AS models;"}
+${migrationsOnly ? "SELECT (SELECT count(*) FROM drizzle.__drizzle_migrations) AS migrations_applied, (SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND (table_name LIKE 'center%' OR table_name = 'service_centers')) AS care_tables, (SELECT string_agg(e.enumlabel, ', ' ORDER BY e.enumsortorder) FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid WHERE t.typname = 'center_status') AS center_statuses, (SELECT count(*) FROM pg_trigger WHERE tgname LIKE 'audit_logs_no_%') AS audit_guards, (SELECT count(*) FROM listings) AS listings_kept;" : "SELECT (SELECT count(*) FROM vehicle_makes) AS makes, (SELECT count(*) FROM vehicle_models) AS models;"}
 `;
 writeFileSync(outFile, out);
 console.log(`${outFile} written`);

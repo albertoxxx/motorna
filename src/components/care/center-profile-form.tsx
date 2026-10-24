@@ -92,7 +92,7 @@ export function CenterProfileForm({
           </Select>
         )}
       </Field>
-      <Field label={P.area} htmlFor="area" {...opt}>
+      <Field label={P.area} htmlFor="area" hint={P.areaHint} {...opt}>
         <Input id="area" name="area" defaultValue={v?.area ?? ""} maxLength={80} />
       </Field>
       <Field className="sm:col-span-2" label={P.address} htmlFor="address" error={err("address")} {...req}>

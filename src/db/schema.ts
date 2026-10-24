@@ -443,7 +443,7 @@ export type UserRole = (typeof userRole.enumValues)[number];
 /* See docs/CARE.md. Status changes are admin-only and always audited. */
 /* ------------------------------------------------------------------ */
 
-export const centerStatus = pgEnum("center_status", ["applied", "under_review", "approved", "suspended", "revoked", "rejected"]);
+export const centerStatus = pgEnum("center_status", ["draft", "applied", "under_review", "changes_requested", "approved", "suspended", "revoked", "rejected"]);
 export const centerStaffRole = pgEnum("center_staff_role", ["owner", "manager", "technician"]);
 export const careCategory = pgEnum("care_category", [
   "pre_purchase_inspection",
@@ -483,6 +483,9 @@ export const serviceCenters = pgTable(
     statusReason: text(),
     approvedAt: timestamp({ withTimezone: true }),
     approvedById: text().references(() => users.id, { onDelete: "set null" }),
+    /** Last time an admin approved or reinstated the center after review. */
+    lastVerifiedAt: timestamp({ withTimezone: true }),
+    submittedAt: timestamp({ withTimezone: true }),
     createdById: text()
       .notNull()
       .references(() => users.id),
@@ -596,6 +599,70 @@ export const centerHours = pgTable(
     check("center_hours_weekday", sql`${t.weekday} BETWEEN 0 AND 6`),
     check("center_hours_format", sql`${t.opens} ~ '^[0-2][0-9]:[0-5][0-9]$' AND ${t.closes} ~ '^[0-2][0-9]:[0-5][0-9]$' AND ${t.opens} < ${t.closes}`),
   ],
+);
+
+export const equipmentKind = pgEnum("equipment_kind", [
+  "obd_scanner",
+  "paint_thickness_gauge",
+  "lift",
+  "wheel_alignment",
+  "tire_changer",
+  "ac_service_station",
+  "battery_tester",
+  "brake_tester",
+  "emissions_analyzer",
+  "other",
+]);
+
+/** Equipment the center declares. Only the admin checklist confirms it (criterion inspection_equipment). */
+export const centerEquipment = pgTable(
+  "center_equipment",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    centerId: uuid()
+      .notNull()
+      .references(() => serviceCenters.id, { onDelete: "cascade" }),
+    kind: equipmentKind().notNull(),
+    details: text(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("center_equipment_center_idx").on(t.centerId), check("center_equipment_details_length", sql`${t.details} IS NULL OR char_length(${t.details}) <= 200`)],
+);
+
+/** Responsible technicians named by the center (may or may not have a MOTORNA account). */
+export const centerTechnicians = pgTable(
+  "center_technicians",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    centerId: uuid()
+      .notNull()
+      .references(() => serviceCenters.id, { onDelete: "cascade" }),
+    fullName: text().notNull(),
+    specialty: text(),
+    yearsExperience: smallint(),
+    certifications: text(),
+    active: boolean().notNull().default(true),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("center_technicians_center_idx").on(t.centerId),
+    check("center_technicians_years", sql`${t.yearsExperience} IS NULL OR ${t.yearsExperience} BETWEEN 0 AND 60`),
+  ],
+);
+
+/** Internal reviewer notes. Never shown to the center. Append-only by convention (no update/delete path). */
+export const centerReviewNotes = pgTable(
+  "center_review_notes",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    centerId: uuid()
+      .notNull()
+      .references(() => serviceCenters.id, { onDelete: "cascade" }),
+    authorId: text().references(() => users.id, { onDelete: "set null" }),
+    body: text().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("center_review_notes_center_idx").on(t.centerId), check("center_review_notes_length", sql`char_length(${t.body}) BETWEEN 1 AND 2000`)],
 );
 
 export type ServiceCenter = typeof serviceCenters.$inferSelect;

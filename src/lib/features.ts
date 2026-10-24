@@ -4,4 +4,6 @@
  */
 export const features = {
   assistant: process.env.NEXT_PUBLIC_FEATURE_ASSISTANT === "1",
+  /** MOTORNA Care booking/payment. Off until the full workflow, notifications and payments are built and tested. */
+  careBooking: false,
 } as const;

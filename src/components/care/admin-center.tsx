@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { changeCenterStatus, reviewCredential, setCenterCheck } from "@/server/actions/care-admin";
+import { addReviewNote, changeCenterStatus, reviewCredential, setCenterCheck } from "@/server/actions/care-admin";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/field";
 import { actionNeedsReason, nextCenterStatus, ADMIN_CENTER_ACTIONS, type AdminCenterAction, type CenterStatus } from "@/lib/care";
@@ -64,5 +64,25 @@ export function CenterStatusActions({ dict, centerId, status, canApprove }: { di
         })}
       </div>
     </div>
+  );
+}
+
+export function ReviewNoteForm({ dict, centerId }: { dict: CareDict; centerId: string }) {
+  const A = dict.care.admin;
+  const [body, setBody] = useState("");
+  const { pending, run } = useAction(dict);
+  return (
+    <form
+      className="flex flex-col gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        run(() => addReviewNote(centerId, body), A.done, () => setBody(""));
+      }}
+    >
+      <Textarea aria-label={A.addNote} value={body} onChange={(e) => setBody(e.target.value)} maxLength={2000} className="min-h-20!" />
+      <div>
+        <Button type="submit" size="sm" variant="secondary" disabled={pending || !body.trim()}>{A.addNote}</Button>
+      </div>
+    </form>
   );
 }

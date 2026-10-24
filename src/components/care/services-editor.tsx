@@ -32,8 +32,8 @@ export function ServicesEditor({ locale, dict, centerId, services, editable }: {
                   <p className="font-medium"><bdi>{locale === "ar" ? s.nameAr : s.nameEn}</bdi></p>
                   <p className="text-ink-3">
                     {dict.care.enums.category[s.category as keyof typeof dict.care.enums.category]} ·{" "}
-                    <span className="tabular">{s.priceMode === "fixed" && s.priceEgp != null ? formatPrice(s.priceEgp, locale) : dict.care.onQuotation}</span> ·{" "}
-                    {dict.care.durationMin.replace("{n}", String(s.durationMin))}
+                    <span className="tabular">{s.priceMode === "fixed" && s.priceEgp != null ? formatPrice(s.priceEgp, locale) : dict.care.detail.onQuotation}</span> ·{" "}
+                    {dict.care.detail.durationMin.replace("{n}", String(s.durationMin))}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

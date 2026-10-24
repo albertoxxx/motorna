@@ -481,6 +481,7 @@ const en: Dictionary = {
     disclaimer: "MOTORNA is a listings platform. We don't own the cars listed and don't handle payments between buyers and sellers.",
   },
   errors: {
+    applicationIncomplete: "The application is incomplete. Finish the checklist first.",
     documentsUnavailable: "Document upload isn't available right now. Try again later.",
     centerPending: "You already have a center application under review.",
     identityLocked: "Name, governorate and address are locked after approval.",
@@ -505,6 +506,9 @@ const en: Dictionary = {
     invalidTransition: "That action isn't available for this listing's current status.",
   },
   validation: {
+    equipmentDetails: "Details can be up to 200 characters",
+    technicianName: "Enter the full name (3–80 characters)",
+    technicianYears: "Years of experience must be 0–60",
     centerName: "Name must be 2–80 characters",
     address: "Enter the full address (at least 5 characters)",
     website: "Enter a link starting with http or https",

@@ -1,9 +1,9 @@
 import "server-only";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
-import type { CenterCriterion, StaffRole } from "@/lib/care";
+import { cairoWeekday, DIRECTORY_PAGE_SIZE, type CenterCriterion, type DirectorySort, type StaffRole } from "@/lib/care";
 
-const { serviceCenters: C, centerStaff: ST, centerServices: SV, centerHours: H, centerCredentials: CR, centerApprovalChecks: CK, cities, users: U, auditLogs: A } = schema;
+const { serviceCenters: C, centerStaff: ST, centerServices: SV, centerHours: H, centerCredentials: CR, centerApprovalChecks: CK, centerEquipment: EQ, centerTechnicians: TECH, centerReviewNotes: NOTE, cities, users: U, auditLogs: A } = schema;
 
 const publicCols = {
   id: C.id,
@@ -24,28 +24,66 @@ const publicCols = {
   citySlug: cities.slug,
 };
 
-/** Public directory: approved centers only, optional city / category filter. */
-export async function approvedCenters(filter: { city?: string; category?: string } = {}) {
+export type DirectoryFilter = { city?: string; area?: string; category?: string; sort?: DirectorySort; page?: number };
+
+/**
+ * Public directory: approved centers only. Filters run in SQL, so the count and the
+ * pages always describe the same filtered set.
+ */
+export async function approvedCenters(filter: DirectoryFilter = {}) {
   const conds = [eq(C.status, "approved")];
   if (filter.city) conds.push(eq(cities.slug, filter.city));
+  if (filter.area) conds.push(sql`lower(trim(${C.area})) = lower(trim(${filter.area}))`);
   if (filter.category) {
     conds.push(
       sql`EXISTS (SELECT 1 FROM ${SV} WHERE ${SV.centerId} = ${C.id} AND ${SV.active} AND ${SV.category} = ${filter.category})`,
     );
   }
-  const rows = await db
-    .select(publicCols)
+  const where = and(...conds);
+  const [{ total }] = await db
+    .select({ total: sql<number>`count(*)::int` })
     .from(C)
     .innerJoin(cities, eq(cities.id, C.cityId))
-    .where(and(...conds))
-    .orderBy(asc(C.nameEn));
-  const services = rows.length
-    ? await db
-        .select({ centerId: SV.centerId, category: SV.category })
-        .from(SV)
-        .where(and(inArray(SV.centerId, rows.map((r) => r.id)), eq(SV.active, true)))
-    : [];
-  return rows.map((r) => ({ ...r, categories: [...new Set(services.filter((s) => s.centerId === r.id).map((s) => s.category))] }));
+    .where(where);
+  const pages = Math.max(1, Math.ceil(total / DIRECTORY_PAGE_SIZE));
+  const page = Math.min(Math.max(1, filter.page ?? 1), pages);
+  const rows = await db
+    .select({ ...publicCols, lastVerifiedAt: C.lastVerifiedAt })
+    .from(C)
+    .innerJoin(cities, eq(cities.id, C.cityId))
+    .where(where)
+    .orderBy(...(filter.sort === "recent" ? [desc(sql`coalesce(${C.lastVerifiedAt}, ${C.approvedAt})`), asc(C.nameEn)] : [asc(C.nameEn)]))
+    .limit(DIRECTORY_PAGE_SIZE)
+    .offset((page - 1) * DIRECTORY_PAGE_SIZE);
+  const ids = rows.map((r) => r.id);
+  const today = cairoWeekday();
+  const [services, hours] = ids.length
+    ? await Promise.all([
+        db.select({ centerId: SV.centerId, category: SV.category }).from(SV).where(and(inArray(SV.centerId, ids), eq(SV.active, true))),
+        db.select().from(H).where(inArray(H.centerId, ids)),
+      ])
+    : [[], []];
+  const items = rows.map((r) => {
+    const mine = hours.filter((x) => x.centerId === r.id);
+    const t = mine.find((x) => x.weekday === today);
+    return {
+      ...r,
+      categories: [...new Set(services.filter((x) => x.centerId === r.id).map((x) => x.category))],
+      // null = no published hours; { closed: true } = published hours but closed today.
+      today: mine.length === 0 ? null : t ? { closed: false as const, opens: t.opens, closes: t.closes } : { closed: true as const },
+    };
+  });
+  return { items, total, page, pages };
+}
+
+/** Distinct areas among approved centers (optionally in one governorate), for the area filter. */
+export async function directoryAreas(city?: string) {
+  const rows = await db
+    .selectDistinct({ area: sql<string>`trim(${C.area})` })
+    .from(C)
+    .innerJoin(cities, eq(cities.id, C.cityId))
+    .where(and(eq(C.status, "approved"), sql`coalesce(trim(${C.area}), '') <> ''`, city ? eq(cities.slug, city) : undefined));
+  return rows.map((r) => r.area).sort((a, b) => a.localeCompare(b));
 }
 
 export async function approvedCenterCount() {
@@ -53,19 +91,29 @@ export async function approvedCenterCount() {
   return n;
 }
 
-/** Public center page. Returns null unless the center is approved. */
+/** Public center page. Returns null unless the center is approved. Only shows what MOTORNA actually recorded. */
 export async function publicCenterBySlug(slug: string) {
   const [c] = await db
-    .select({ ...publicCols, status: C.status })
+    .select({ ...publicCols, status: C.status, lastVerifiedAt: C.lastVerifiedAt })
     .from(C)
     .innerJoin(cities, eq(cities.id, C.cityId))
     .where(and(eq(C.slug, slug), eq(C.status, "approved")));
   if (!c) return null;
-  const [services, hours] = await Promise.all([
+  const [services, hours, equipment, technicians, checks] = await Promise.all([
     db.select().from(SV).where(and(eq(SV.centerId, c.id), eq(SV.active, true))).orderBy(asc(SV.category), asc(SV.nameEn)),
     db.select().from(H).where(eq(H.centerId, c.id)).orderBy(asc(H.weekday)),
+    db.select({ kind: EQ.kind, details: EQ.details }).from(EQ).where(eq(EQ.centerId, c.id)).orderBy(asc(EQ.kind)),
+    // Public view shows specialties and experience, not technicians' names.
+    db
+      .select({ specialty: TECH.specialty, yearsExperience: TECH.yearsExperience })
+      .from(TECH)
+      .where(and(eq(TECH.centerId, c.id), eq(TECH.active, true))),
+    db
+      .select({ criterion: CK.criterion, checkedAt: CK.checkedAt })
+      .from(CK)
+      .where(and(eq(CK.centerId, c.id), eq(CK.passed, true))),
   ]);
-  return { ...c, services, hours };
+  return { ...c, services, hours, equipment, technicians, checks };
 }
 
 /** The caller's role at a center (null when not active staff). */
@@ -90,7 +138,7 @@ export async function centersForUser(userId: string) {
 export async function centerWorkspace(centerId: string) {
   const [center] = await db.select().from(C).where(eq(C.id, centerId));
   if (!center) return null;
-  const [services, hours, credentials, staff, checks] = await Promise.all([
+  const [services, hours, credentials, staff, checks, equipment, technicians] = await Promise.all([
     db.select().from(SV).where(eq(SV.centerId, centerId)).orderBy(asc(SV.category), asc(SV.nameEn)),
     db.select().from(H).where(eq(H.centerId, centerId)).orderBy(asc(H.weekday)),
     db
@@ -114,9 +162,11 @@ export async function centerWorkspace(centerId: string) {
       .where(eq(ST.centerId, centerId))
       .orderBy(asc(ST.createdAt)),
     db.select().from(CK).where(eq(CK.centerId, centerId)),
+    db.select().from(EQ).where(eq(EQ.centerId, centerId)).orderBy(asc(EQ.createdAt)),
+    db.select().from(TECH).where(eq(TECH.centerId, centerId)).orderBy(asc(TECH.createdAt)),
   ]);
   const checkMap = Object.fromEntries(checks.map((c) => [c.criterion, c])) as Partial<Record<CenterCriterion, (typeof checks)[number]>>;
-  return { center, services, hours, credentials, staff, checks: checkMap };
+  return { center, services, hours, credentials, staff, checks: checkMap, equipment, technicians };
 }
 
 export async function centerIdBySlug(slug: string) {
@@ -134,6 +184,7 @@ export async function adminCenterList(statuses?: schema.CenterStatus[]) {
       nameEn: C.nameEn,
       status: C.status,
       createdAt: C.createdAt,
+      submittedAt: C.submittedAt,
       cityNameAr: cities.nameAr,
       cityNameEn: cities.nameEn,
       ownerName: U.name,
@@ -142,7 +193,8 @@ export async function adminCenterList(statuses?: schema.CenterStatus[]) {
     .innerJoin(cities, eq(cities.id, C.cityId))
     .innerJoin(U, eq(U.id, C.createdById))
     .where(statuses?.length ? inArray(C.status, statuses) : undefined)
-    .orderBy(desc(C.createdAt));
+    // Oldest submissions first, so the queue is worked in order.
+    .orderBy(asc(sql`coalesce(${C.submittedAt}, ${C.createdAt})`));
 }
 
 export async function centerAudit(centerId: string) {
@@ -153,6 +205,22 @@ export async function centerAudit(centerId: string) {
     .where(and(eq(A.entityType, "service_center"), eq(A.entityId, centerId)))
     .orderBy(desc(A.createdAt))
     .limit(100);
+}
+
+/** Internal notes — callers must be admins (checked by the admin layout and page). */
+export async function reviewNotes(centerId: string) {
+  return db
+    .select({ id: NOTE.id, body: NOTE.body, createdAt: NOTE.createdAt, authorName: U.name })
+    .from(NOTE)
+    .leftJoin(U, eq(U.id, NOTE.authorId))
+    .where(eq(NOTE.centerId, centerId))
+    .orderBy(desc(NOTE.createdAt));
+}
+
+/** Count of centers per status, for the admin queue tabs. */
+export async function centerStatusCounts() {
+  const rows = await db.select({ status: C.status, n: sql<number>`count(*)::int` }).from(C).groupBy(C.status);
+  return Object.fromEntries(rows.map((r) => [r.status, r.n])) as Partial<Record<schema.CenterStatus, number>>;
 }
 
 export async function pendingCenterCount() {

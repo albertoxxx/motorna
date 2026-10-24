@@ -25,7 +25,10 @@ export type ValidationKey =
   | "serviceName"
   | "servicePrice"
   | "serviceDuration"
-  | "hours";
+  | "hours"
+  | "equipmentDetails"
+  | "technicianName"
+  | "technicianYears";
 
 export const CONDITIONS = ["new", "used"] as const;
 export const TRANSMISSIONS = ["automatic", "manual"] as const;

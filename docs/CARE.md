@@ -1,6 +1,6 @@
 # MOTORNA Care — design proposal
 
-Status: **Stage 1 built** (center directory and approval workflow). Stages 2–6 not started. Decisions in §10 were settled on 2026-10-25.
+Status: **Stage 1 built and extended** (directory, center pages, partner application workflow, admin review). Booking and payments are designed (§5, §13) but **not built or enabled**. Decisions in §10 were settled on 2026-10-25.
 Prerequisite met: the website enhancement sprint is deployed (commit `03d74a5`). It passed tsc, eslint, 74 unit/integration tests and 37 e2e checks.
 
 ## 1. What exists today (relevant to Care)
@@ -211,3 +211,43 @@ Each stage ships with vitest coverage, e2e flows, an additive SQL update file (`
 - Recruit real centers. None will be invented.
 - Legal: center terms and an inspection-report disclaimer, reviewed by an Egyptian lawyer.
 - Later: an email provider (notifications) and a payment provider (Stage 6).
+
+## 13. Directory and application upgrade (migration `0004_care_workflow`)
+
+**Application workflow.** These are the `center_status` values; `applied` is labelled "Submitted" in the UI.
+
+```
+draft ──owner submits (server checks completeness)──▶ applied ──admin──▶ under_review ──admin──▶ approved ⇄ suspended
+  ▲                                                     │                   │                       │
+  └── owner resubmits ◀── changes_requested ◀──admin────┴───────────────────┘                       └──▶ revoked
+                          rejected ◀──admin── (applied | under_review | changes_requested)
+```
+
+- **Submit needs:** at least one active service, one active responsible technician, and an uploaded commercial register and tax card. If the center offers pre-purchase inspection, it also needs a declared OBD scanner, paint-thickness gauge and lift.
+- **Request changes, reject, suspend, revoke:** each needs a message, and the center sees it.
+- **Approve:** still needs every applicable checklist item plus accepted, unexpired documents. Approve and reinstate set `last_verified_at`.
+- Admins can't act on drafts.
+
+**New tables**
+- `center_equipment`: what the center declares. Only the inspection-equipment criterion confirms it.
+- `center_technicians`: names are visible to moderators only. The public page shows specialty and experience.
+- `center_review_notes`: internal and append-only. Never returned by any center-facing query.
+
+**New columns:** `service_centers.submitted_at` and `last_verified_at`.
+
+**Directory.** Approved centers only, with filters for governorate, area (distinct areas of approved centers), service and sort (name / most recently reviewed). There are 12 per page. The count, pages and items all come from one filtered SQL query. Cards show today's hours in Cairo time when the center published hours.
+
+**Center page.** Shows only recorded data:
+- Services and prices, declared equipment, and a technician count with specialties.
+- Each confirmed criterion with its check date, and the last review date.
+- A Google Maps search link built from the address the center entered (no invented coordinates).
+- A notice that MOTORNA's review is not a government license or any other official accreditation.
+
+**Bookings and revenue (architecture only)**
+- `src/lib/booking.ts` holds:
+  - The booking state machine (`nextBookingStatus`): actors, a 12-hour customer cancel/reschedule cutoff, no-show only after the slot, and inspections must reach `report_ready` before `completed`.
+  - Payment status, separate from booking status.
+  - `commissionFor`: accrues only for completed bookings with a final price, and the most specific active rule wins.
+  - The subscription type, which is billing-only and never an approval input.
+- These are covered by `tests/booking.test.ts`. No booking or payment tables exist yet. `features.careBooking` is `false` and the UI says booking and payment aren't available.
+- Tables to add when Stage 2 starts are listed in §3 (`bookings`, `booking_events`, `payments`, `commission_rules`, `commissions`, `subscription_plans`, `center_subscriptions`). They link `listing_id` and an owner vehicle, and keep payment state in `payments`, separate from booking state.
