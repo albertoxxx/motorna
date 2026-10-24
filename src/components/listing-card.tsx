@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Gauge, MapPin, Settings2, ImageIcon } from "lucide-react";
+import { Fuel, Gauge, MapPin, Settings2, ImageIcon } from "lucide-react";
 import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/dictionaries/ar";
 import type { ListingCardData } from "@/server/listings";
@@ -13,8 +13,10 @@ export function ListingCard({
   saved,
   signedIn,
   priority,
+  previousPrice,
 }: {
   item: ListingCardData;
+  previousPrice?: number;
   locale: Locale;
   dict: Dictionary;
   saved: boolean;
@@ -71,7 +73,15 @@ export function ListingCard({
           </h3>
           {item.trim && <p className="mt-0.5 truncate text-sm text-ink-3">{item.trim}</p>}
         </div>
-        <p className="tabular text-base font-bold text-navy-900 sm:text-lg">{formatPrice(item.priceEgp, locale)}</p>
+        <p className="tabular flex flex-wrap items-baseline gap-x-2 text-base font-bold text-navy-900 sm:text-lg">
+          {formatPrice(item.priceEgp, locale)}
+          {previousPrice && previousPrice > item.priceEgp && (
+            <span className="text-xs font-medium text-ink-3">
+              <span className="sr-only">{dict.listing.wasPrice} </span>
+              <s>{formatPrice(previousPrice, locale)}</s>
+            </span>
+          )}
+        </p>
         <ul className="mt-auto flex flex-wrap gap-x-3 gap-y-1 text-[0.8rem] text-ink-2 sm:gap-x-4 sm:gap-y-1.5 sm:border-t sm:border-line sm:pt-3">
           <li className="flex items-center gap-1.5">
             <Gauge className="size-3.5 text-ink-3" aria-hidden />
@@ -80,6 +90,10 @@ export function ListingCard({
           <li className="flex items-center gap-1.5">
             <Settings2 className="size-3.5 text-ink-3" aria-hidden />
             {dict.enums.transmission[item.transmission]}
+          </li>
+          <li className="flex items-center gap-1.5">
+            <Fuel className="size-3.5 text-ink-3" aria-hidden />
+            {dict.enums.fuel[item.fuelType]}
           </li>
           <li className="flex items-center gap-1.5">
             <MapPin className="size-3.5 text-ink-3" aria-hidden />

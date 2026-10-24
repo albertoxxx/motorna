@@ -15,7 +15,8 @@ export type ValidationKey =
   | "nameLength"
   | "messageLength"
   | "newUsedMileage"
-  | "modelOther";
+  | "modelOther"
+  | "knownDefectsLength";
 
 export const CONDITIONS = ["new", "used"] as const;
 export const TRANSMISSIONS = ["automatic", "manual"] as const;
@@ -85,6 +86,10 @@ export const listingInputSchema = z
     description: z.preprocess(
       (v) => (typeof v === "string" ? v.trim() : ""),
       z.string().max(5000, { error: "descriptionLength" }),
+    ),
+    knownDefects: z.preprocess(
+      (v) => (typeof v === "string" ? v.trim() || undefined : undefined),
+      z.string().max(2000, { error: "knownDefectsLength" }).optional(),
     ),
   })
   .superRefine((v, ctx) => {

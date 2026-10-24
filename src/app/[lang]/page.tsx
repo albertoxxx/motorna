@@ -13,6 +13,7 @@ import {
   getModels,
   latestListings,
   popularMakesWithCounts,
+  priceReducedListings,
   makesWithListings,
 } from "@/server/listings";
 import { ListingCard, ListingGrid } from "@/components/listing-card";
@@ -31,7 +32,7 @@ const BANDS: [number, number | null][] = [
 export default async function HomePage({ params }: PageProps<"/[lang]">) {
   const { locale, dict } = await resolveLocale(params);
   const h = dict.home;
-  const [user, latest, total, makes, models, cities, popular, bandCounts] = await Promise.all([
+  const [user, latest, total, makes, models, cities, popular, bandCounts, reduced] = await Promise.all([
     getCurrentUser(),
     latestListings(8),
     countPublished(),
@@ -40,8 +41,11 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
     getCities(),
     popularMakesWithCounts(),
     budgetBandCounts(BANDS),
+    priceReducedListings(4),
   ]);
-  const saved = await favoriteIds(user?.id, latest.map((l) => l.id));
+  const saved = await favoriteIds(user?.id, [...latest, ...reduced.map((r) => r.item)].map((l) => l.id));
+  const makesWithCars = popular.filter((m) => m.count > 0);
+  const bandsWithCars = BANDS.map((band, i) => ({ band, count: bandCounts[i] })).filter((b) => b.count > 0);
   // Quick links: makes that actually have listings, most first.
   const quickMakes = (await makesWithListings()).slice(0, 6);
   const p = (s: string) => `/${locale}${s}`;
@@ -120,47 +124,66 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
         )}
       </section>
 
-      {/* Makes + budgets */}
-      <section className="container-page grid gap-10 py-10 lg:grid-cols-[1.6fr_1fr]">
-        <div aria-labelledby="makes">
-          <h2 id="makes" className="mb-5 text-xl font-bold">{h.makesTitle}</h2>
-          <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-            {popular.map((m) => (
-              <li key={m.slug}>
-                <Link
-                  href={p(`/cars?make=${m.slug}`)}
-                  aria-label={`${locale === "ar" ? m.nameAr : m.nameEn}: ${t(h.carsCount, { n: formatNumber(m.count, locale) })}`}
-                  className="flex h-full items-center justify-between gap-2 rounded-[var(--radius-md)] border border-line bg-surface px-4 py-3.5 hover:border-line-strong"
-                >
-                  <span className="font-semibold">{locale === "ar" ? m.nameAr : m.nameEn}</span>
-                  <span className={`tabular rounded-full px-2 py-0.5 text-xs ${m.count ? "bg-navy-900/[0.06] text-ink-2" : "text-ink-3"}`} aria-hidden>
-                    {formatNumber(m.count, locale)}
-                  </span>
-                </Link>
-              </li>
+      {/* Recently reduced: only listings whose price actually dropped (from price history). */}
+      {reduced.length > 0 && (
+        <section className="container-page py-10" aria-labelledby="reduced">
+          <h2 id="reduced" className="mb-6 text-2xl font-bold">{h.reducedTitle}</h2>
+          <ListingGrid>
+            {reduced.map(({ item, previousPrice }) => (
+              <ListingCard key={item.id} item={item} previousPrice={previousPrice} locale={locale} dict={dict} saved={saved.has(item.id)} signedIn={!!user} />
             ))}
-          </ul>
-        </div>
-        <div aria-labelledby="budget">
-          <h2 id="budget" className="mb-5 text-xl font-bold">{h.budgetTitle}</h2>
-          <ul className="flex flex-col divide-y divide-line overflow-hidden rounded-[var(--radius-lg)] border border-line bg-surface">
-            {BANDS.map((b, i) => (
-              <li key={i}>
-                <Link
-                  href={bandHref(b)}
-                  aria-label={`${bandLabel(b)}: ${t(h.carsCount, { n: formatNumber(bandCounts[i], locale) })}`}
-                  className="flex items-center justify-between px-4 py-4 hover:bg-canvas"
-                >
-                  <span className="tabular font-medium">{bandLabel(b)}</span>
-                  <span className={`tabular rounded-full px-2 py-0.5 text-xs ${bandCounts[i] ? "bg-navy-900/[0.06] text-ink-2" : "text-ink-3"}`} aria-hidden>
-                    {formatNumber(bandCounts[i], locale)}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
+          </ListingGrid>
+        </section>
+      )}
+
+      {/* Makes + budgets: only categories that currently have cars. */}
+      {(makesWithCars.length > 0 || bandsWithCars.length > 0) && (
+        <section className="container-page grid gap-10 py-10 lg:grid-cols-[1.6fr_1fr]">
+          {makesWithCars.length > 0 && (
+            <div aria-labelledby="makes">
+              <h2 id="makes" className="mb-5 text-xl font-bold">{h.makesTitle}</h2>
+              <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+                {makesWithCars.map((m) => (
+                  <li key={m.slug}>
+                    <Link
+                      href={p(`/cars?make=${m.slug}`)}
+                      aria-label={`${locale === "ar" ? m.nameAr : m.nameEn}: ${t(h.carsCount, { n: formatNumber(m.count, locale) })}`}
+                      className="flex h-full min-h-12 items-center justify-between gap-2 rounded-[var(--radius-md)] border border-line bg-surface px-4 py-3 hover:border-line-strong"
+                    >
+                      <span className="font-semibold">{locale === "ar" ? m.nameAr : m.nameEn}</span>
+                      <span className="tabular rounded-full bg-navy-900/[0.06] px-2 py-0.5 text-xs text-ink-2" aria-hidden>
+                        {formatNumber(m.count, locale)}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              <Link href={p("/cars")} className="mt-3 inline-block text-sm font-medium text-brand-700 hover:underline">{h.allMakesLink}</Link>
+            </div>
+          )}
+          {bandsWithCars.length > 0 && (
+            <div aria-labelledby="budget">
+              <h2 id="budget" className="mb-5 text-xl font-bold">{h.budgetTitle}</h2>
+              <ul className="flex flex-col divide-y divide-line overflow-hidden rounded-[var(--radius-lg)] border border-line bg-surface">
+                {bandsWithCars.map(({ band, count }, i) => (
+                  <li key={i}>
+                    <Link
+                      href={bandHref(band)}
+                      aria-label={`${bandLabel(band)}: ${t(h.carsCount, { n: formatNumber(count, locale) })}`}
+                      className="flex min-h-12 items-center justify-between px-4 py-3.5 hover:bg-canvas"
+                    >
+                      <span className="tabular font-medium">{bandLabel(band)}</span>
+                      <span className="tabular rounded-full bg-navy-900/[0.06] px-2 py-0.5 text-xs text-ink-2" aria-hidden>
+                        {formatNumber(count, locale)}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* How it works — a real sequence, so it is numbered */}
       <section className="container-page py-12" aria-labelledby="how">

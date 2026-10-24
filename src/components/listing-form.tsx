@@ -35,16 +35,25 @@ type Values = {
   area: string;
   title: string;
   description: string;
+  knownDefects: string;
 };
 
 export type ListingFormInitial = Partial<Values> & { id?: string; status?: string };
 type Img = { id: string; thumbUrl: string };
 type CityWithId = CityOption & { id: number };
 
+// Step groups. Data lives in one state object, so moving between steps never loses input.
 const STEP_FIELDS: (keyof Values)[][] = [
-  ["makeId", "modelId", "modelOther", "year", "trim", "condition", "bodyType"],
-  ["mileageKm", "transmission", "fuelType", "engineCc", "color", "priceEgp", "cityId", "area", "title", "description"],
+  ["makeId", "modelId", "modelOther", "year", "trim", "condition"],
+  ["mileageKm", "transmission", "fuelType", "bodyType", "engineCc", "color"],
+  ["priceEgp", "negotiable", "cityId", "area"],
+  [], // photos
+  ["title", "description", "knownDefects"],
+  [], // review
 ];
+const PHOTOS_STEP = 3;
+const DETAILS_STEP = 4;
+const REVIEW_STEP = 5;
 
 export function ListingForm({
   locale,
@@ -79,7 +88,7 @@ export function ListingForm({
   const [v, setV] = useState<Values>({
     makeId: "", modelId: "", modelOther: "", trim: "", year: "", mileageKm: "", priceEgp: "", negotiable: true,
     condition: "used", transmission: "automatic", fuelType: "petrol", bodyType: "", color: "",
-    engineCc: "", cityId: String(cities.find((c) => c.slug === "alexandria")?.id ?? ""), area: "", title: "", description: "",
+    engineCc: "", cityId: String(cities.find((c) => c.slug === "alexandria")?.id ?? ""), area: "", title: "", description: "", knownDefects: "",
     ...initial,
   });
   const name = (r: { nameAr: string; nameEn: string }) => (locale === "ar" ? r.nameAr : r.nameEn);
@@ -107,19 +116,26 @@ export function ListingForm({
   }
   const err = (k: keyof Values) => (errors[k] ? dict.validation[errors[k]] : undefined);
 
-  function localCheck(fields: (keyof Values)[]) {
+  /** Client-side check for the given steps (the server validates everything again). */
+  function localCheck(stepIdx: number[]) {
     const e: Record<string, ValidationKey> = {};
     const req = (k: keyof Values) => !String(v[k]).trim() && (e[k] = "required");
-    if (fields.includes("makeId")) {
+    if (stepIdx.includes(0)) {
       req("makeId"); req("modelId"); req("year");
       if (v.modelId === "other" && !v.modelOther.trim()) e.modelOther = "modelOther";
     }
-    if (fields.includes("mileageKm")) {
-      req("mileageKm"); req("priceEgp"); req("cityId");
+    if (stepIdx.includes(1)) req("mileageKm");
+    if (stepIdx.includes(2)) { req("priceEgp"); req("cityId"); }
+    if (stepIdx.includes(DETAILS_STEP)) {
       if (v.title.trim().length < 10 || v.title.trim().length > 100) e.title = "titleLength";
     }
     setErrors(e);
-    return Object.keys(e).length === 0;
+    if (Object.keys(e).length) {
+      const first = STEP_FIELDS.findIndex((fs) => fs.some((f) => e[f]));
+      if (first >= 0 && first !== step) setStep(first);
+      return false;
+    }
+    return true;
   }
 
   function persist(intent: "draft" | "submit", after?: (r: { id: string; status: string; missing: ("photos" | "description")[]; slug: string }) => void) {
@@ -137,19 +153,25 @@ export function ListingForm({
       setId(res.data.id);
       setStatus(res.data.status);
       setMissing(res.data.missing);
-      // Keep the URL resumable without remounting the form.
-      if (!id) window.history.replaceState(null, "", `/${locale}/account/listings/${res.data.id}/edit`);
+      // Make the URL resumable while staying on the same route, so later saves
+      // (which refresh the current route) never remount the form or reset the step.
+      if (!id && window.location.pathname.endsWith("/sell")) {
+        window.history.replaceState(null, "", `/${locale}/sell?draft=${res.data.id}`);
+      }
       after?.(res.data);
     });
   }
 
   function next() {
-    if (step === 0) {
-      if (localCheck(STEP_FIELDS[0])) setStep(1);
-    } else if (step === 1) {
-      if (localCheck(STEP_FIELDS[1])) persist("draft", () => setStep(2));
+    if (step < 2) {
+      if (localCheck([step])) setStep(step + 1);
     } else if (step === 2) {
-      setStep(3);
+      // A draft must exist before photos can be uploaded.
+      if (localCheck([0, 1, 2])) persist("draft", () => setStep(PHOTOS_STEP));
+    } else if (step === DETAILS_STEP) {
+      if (localCheck([DETAILS_STEP])) persist("draft", () => setStep(REVIEW_STEP));
+    } else {
+      setStep(step + 1);
     }
   }
 
@@ -202,7 +224,7 @@ export function ListingForm({
     });
   }
 
-  const steps = [S.steps.car, S.steps.details, S.steps.photos, S.steps.review];
+  const steps = [S.steps.car, S.steps.specs, S.steps.priceLocation, S.steps.photos, S.steps.description, S.steps.review];
   const canSubmit = ["draft", "rejected", "archived"].includes(status);
   const mk = makes.find((m) => String(m.id) === v.makeId);
   const md = models.find((m) => String(m.id) === v.modelId);
@@ -222,7 +244,7 @@ export function ListingForm({
       </div>
       <ol className="hidden gap-1 lg:flex lg:flex-col" aria-label={S.title}>
         {steps.map((label, i) => {
-          const reachable = i <= step || (i >= 2 && !!id);
+          const reachable = i <= step || (i >= PHOTOS_STEP && !!id);
           return (
             <li key={label} className="shrink-0">
               <button
@@ -248,38 +270,58 @@ export function ListingForm({
       <div className="rounded-[var(--radius-lg)] border border-line bg-surface p-5 sm:p-7">
         {status === "published" && id && <Notice className="mb-5">{S.reviewNotice} {S.priceOnlyNotice}</Notice>}
 
+        <p className="mb-5 text-xs text-ink-3"><span className="text-danger-600" aria-hidden>*</span> {S.requiredLegend}</p>
+
         {step === 0 && (
           <div className="grid gap-5 sm:grid-cols-2">
-            <Field label={S.make} htmlFor="makeId" error={err("makeId")}>
-              <Select id="makeId" value={v.makeId} invalid={!!errors.makeId} onChange={(e) => set("makeId", e.target.value)}>
+            <Field label={S.make} htmlFor="makeId" error={err("makeId")} required requiredLabel={dict.common.required}>
+              <Select id="makeId" value={v.makeId} invalid={!!errors.makeId} onChange={(e) => set("makeId", e.target.value)} required>
                 <option value="">{S.selectMake}</option>
                 {makes.map((m) => <option key={m.id} value={m.id}>{name(m)}</option>)}
               </Select>
             </Field>
-            <Field label={S.model} htmlFor="modelId" error={err("modelId")}>
-              <Select id="modelId" value={v.modelId} invalid={!!errors.modelId} disabled={!v.makeId} onChange={(e) => set("modelId", e.target.value)}>
+            <Field label={S.model} htmlFor="modelId" error={err("modelId")} required requiredLabel={dict.common.required}>
+              <Select id="modelId" value={v.modelId} invalid={!!errors.modelId} disabled={!v.makeId} onChange={(e) => set("modelId", e.target.value)} required>
                 <option value="">{v.makeId ? S.selectModel : S.selectMakeFirst}</option>
                 {makeModels.map((m) => <option key={m.id} value={m.id}>{name(m)}</option>)}
                 {v.makeId && <option value="other">{S.modelNotListed}</option>}
               </Select>
             </Field>
             {v.modelId === "other" && (
-              <Field className="sm:col-span-2" label={S.modelOtherLabel} htmlFor="modelOther" hint={S.modelOtherHint} error={err("modelOther")}>
-                <Input id="modelOther" value={v.modelOther} maxLength={40} invalid={!!errors.modelOther} autoFocus onChange={(e) => set("modelOther", e.target.value)} />
+              <Field className="sm:col-span-2" label={S.modelOtherLabel} htmlFor="modelOther" hint={S.modelOtherHint} error={err("modelOther")} required requiredLabel={dict.common.required}>
+                <Input id="modelOther" value={v.modelOther} maxLength={40} invalid={!!errors.modelOther} autoFocus onChange={(e) => set("modelOther", e.target.value)} required />
               </Field>
             )}
-            <Field label={S.year} htmlFor="year" error={err("year")}>
-              <Select id="year" value={v.year} invalid={!!errors.year} onChange={(e) => set("year", e.target.value)}>
+            <Field label={S.year} htmlFor="year" error={err("year")} required requiredLabel={dict.common.required}>
+              <Select id="year" value={v.year} invalid={!!errors.year} onChange={(e) => set("year", e.target.value)} required>
                 <option value="">—</option>
                 {years.map((y) => <option key={y} value={y}>{y}</option>)}
               </Select>
             </Field>
-            <Field label={S.trim} htmlFor="trim" hint={S.trimHint} optional optionalLabel={dict.common.optional}>
+            <Field label={S.condition} htmlFor="condition" required requiredLabel={dict.common.required}>
+              <Select id="condition" value={v.condition} onChange={(e) => set("condition", e.target.value)} required>
+                {CONDITIONS.map((c) => <option key={c} value={c}>{dict.enums.condition[c]}</option>)}
+              </Select>
+            </Field>
+            <Field className="sm:col-span-2" label={S.trim} htmlFor="trim" hint={S.trimHint} optional optionalLabel={dict.common.optional}>
               <Input id="trim" value={v.trim} maxLength={60} onChange={(e) => set("trim", e.target.value)} />
             </Field>
-            <Field label={S.condition} htmlFor="condition">
-              <Select id="condition" value={v.condition} onChange={(e) => set("condition", e.target.value)}>
-                {CONDITIONS.map((c) => <option key={c} value={c}>{dict.enums.condition[c]}</option>)}
+          </div>
+        )}
+
+        {step === 1 && (
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field label={S.mileage} htmlFor="mileageKm" error={err("mileageKm")} required requiredLabel={dict.common.required}>
+              <Input id="mileageKm" inputMode="numeric" className="tabular" value={v.mileageKm} invalid={!!errors.mileageKm} onChange={(e) => set("mileageKm", e.target.value)} required />
+            </Field>
+            <Field label={S.transmission} htmlFor="transmission" required requiredLabel={dict.common.required}>
+              <Select id="transmission" value={v.transmission} onChange={(e) => set("transmission", e.target.value)} required>
+                {TRANSMISSIONS.map((t) => <option key={t} value={t}>{dict.enums.transmission[t]}</option>)}
+              </Select>
+            </Field>
+            <Field label={S.fuel} htmlFor="fuelType" required requiredLabel={dict.common.required}>
+              <Select id="fuelType" value={v.fuelType} onChange={(e) => set("fuelType", e.target.value)} required>
+                {FUELS.map((f) => <option key={f} value={f}>{dict.enums.fuel[f]}</option>)}
               </Select>
             </Field>
             <Field label={S.body} htmlFor="bodyType" optional optionalLabel={dict.common.optional}>
@@ -288,36 +330,25 @@ export function ListingForm({
                 {BODIES.map((b) => <option key={b} value={b}>{dict.enums.body[b]}</option>)}
               </Select>
             </Field>
-          </div>
-        )}
-
-        {step === 1 && (
-          <div className="grid gap-5 sm:grid-cols-2">
-            <Field label={S.mileage} htmlFor="mileageKm" error={err("mileageKm")}>
-              <Input id="mileageKm" inputMode="numeric" className="tabular" value={v.mileageKm} invalid={!!errors.mileageKm} onChange={(e) => set("mileageKm", e.target.value)} />
-            </Field>
-            <Field label={S.price} htmlFor="priceEgp" error={err("priceEgp")}>
-              <Input id="priceEgp" inputMode="numeric" className="tabular" value={v.priceEgp} invalid={!!errors.priceEgp} onChange={(e) => set("priceEgp", e.target.value)} />
-            </Field>
-            <Checkbox className="sm:col-span-2" label={S.negotiable} checked={v.negotiable} onChange={(e) => set("negotiable", e.target.checked)} />
-            <Field label={S.transmission} htmlFor="transmission">
-              <Select id="transmission" value={v.transmission} onChange={(e) => set("transmission", e.target.value)}>
-                {TRANSMISSIONS.map((t) => <option key={t} value={t}>{dict.enums.transmission[t]}</option>)}
-              </Select>
-            </Field>
-            <Field label={S.fuel} htmlFor="fuelType">
-              <Select id="fuelType" value={v.fuelType} onChange={(e) => set("fuelType", e.target.value)}>
-                {FUELS.map((f) => <option key={f} value={f}>{dict.enums.fuel[f]}</option>)}
-              </Select>
-            </Field>
             <Field label={S.engineCc} htmlFor="engineCc" error={err("engineCc")} optional optionalLabel={dict.common.optional}>
               <Input id="engineCc" inputMode="numeric" className="tabular" value={v.engineCc} invalid={!!errors.engineCc} onChange={(e) => set("engineCc", e.target.value)} />
             </Field>
             <Field label={S.color} htmlFor="color" optional optionalLabel={dict.common.optional}>
               <Input id="color" value={v.color} maxLength={30} onChange={(e) => set("color", e.target.value)} />
             </Field>
-            <Field label={S.city} htmlFor="cityId" error={err("cityId")}>
-              <Select id="cityId" value={v.cityId} invalid={!!errors.cityId} onChange={(e) => set("cityId", e.target.value)}>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field label={S.price} htmlFor="priceEgp" error={err("priceEgp")} required requiredLabel={dict.common.required}>
+              <Input id="priceEgp" inputMode="numeric" className="tabular" value={v.priceEgp} invalid={!!errors.priceEgp} onChange={(e) => set("priceEgp", e.target.value)} required />
+            </Field>
+            <div className="flex items-end pb-3">
+              <Checkbox label={S.negotiable} checked={v.negotiable} onChange={(e) => set("negotiable", e.target.checked)} />
+            </div>
+            <Field label={S.city} htmlFor="cityId" error={err("cityId")} required requiredLabel={dict.common.required}>
+              <Select id="cityId" value={v.cityId} invalid={!!errors.cityId} onChange={(e) => set("cityId", e.target.value)} required>
                 <option value="">—</option>
                 {cities.map((c) => <option key={c.id} value={c.id}>{name(c)}</option>)}
               </Select>
@@ -325,18 +356,12 @@ export function ListingForm({
             <Field label={S.area} htmlFor="area" hint={S.areaHint} optional optionalLabel={dict.common.optional}>
               <Input id="area" value={v.area} maxLength={60} onChange={(e) => set("area", e.target.value)} />
             </Field>
-            <Field className="sm:col-span-2" label={S.listingTitle} htmlFor="title" hint={S.titleHint} error={err("title")}>
-              <Input id="title" value={v.title} maxLength={100} invalid={!!errors.title} onChange={(e) => { setTitleTouched(true); set("title", e.target.value); }} />
-            </Field>
-            <Field className="sm:col-span-2" label={S.description} htmlFor="description" hint={S.descriptionHint} error={err("description")}>
-              <Textarea id="description" value={v.description} maxLength={5000} rows={7} onChange={(e) => set("description", e.target.value)} />
-            </Field>
           </div>
         )}
 
-        {step === 2 && (
+        {step === PHOTOS_STEP && (
           <div>
-            <h2 className="text-lg font-semibold">{S.photosTitle}</h2>
+            <h2 className="text-lg font-semibold">{S.photosTitle} <span className="text-danger-600" aria-hidden>*</span></h2>
             <p className="mb-5 mt-1 text-sm text-ink-3">{S.photosHint}</p>
             <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {images.map((img, i) => (
@@ -346,19 +371,19 @@ export function ListingForm({
                     <img src={img.thumbUrl} alt="" className="size-full object-cover" />
                     {i === 0 && <span className="absolute start-2 top-2 rounded bg-navy-900 px-2 py-0.5 text-xs font-semibold text-white">{S.cover}</span>}
                   </div>
-                  <div className="flex items-center justify-between gap-1 p-1.5">
-                    <div className="flex gap-1">
-                      <button type="button" onClick={() => move(i, -1)} disabled={i === 0} aria-label={S.moveEarlier} className="rounded p-1.5 text-ink-2 hover:bg-canvas disabled:opacity-30"><ArrowUp className="size-4" /></button>
-                      <button type="button" onClick={() => move(i, 1)} disabled={i === images.length - 1} aria-label={S.moveLater} className="rounded p-1.5 text-ink-2 hover:bg-canvas disabled:opacity-30"><ArrowDown className="size-4" /></button>
-                      {i > 0 && <button type="button" onClick={() => makeCover(i)} aria-label={S.makeCover} title={S.makeCover} className="rounded p-1.5 text-ink-2 hover:bg-canvas"><Star className="size-4" /></button>}
+                  <div className="flex items-center justify-between gap-1 p-1">
+                    <div className="flex">
+                      <button type="button" onClick={() => move(i, -1)} disabled={i === 0} aria-label={S.moveEarlier} className="grid size-10 place-items-center rounded text-ink-2 hover:bg-canvas disabled:opacity-30"><ArrowUp className="size-4" /></button>
+                      <button type="button" onClick={() => move(i, 1)} disabled={i === images.length - 1} aria-label={S.moveLater} className="grid size-10 place-items-center rounded text-ink-2 hover:bg-canvas disabled:opacity-30"><ArrowDown className="size-4" /></button>
+                      {i > 0 && <button type="button" onClick={() => makeCover(i)} aria-label={S.makeCover} title={S.makeCover} className="grid size-10 place-items-center rounded text-ink-2 hover:bg-canvas"><Star className="size-4" /></button>}
                     </div>
-                    <button type="button" onClick={() => remove(img.id)} aria-label={dict.common.remove} className="rounded p-1.5 text-danger-700 hover:bg-danger-50"><Trash2 className="size-4" /></button>
+                    <button type="button" onClick={() => remove(img.id)} aria-label={dict.common.remove} className="grid size-10 place-items-center rounded text-danger-700 hover:bg-danger-50"><Trash2 className="size-4" /></button>
                   </div>
                 </li>
               ))}
               {images.length < 20 && (
                 <li>
-                  <label className="flex aspect-[4/3] cursor-pointer flex-col items-center justify-center gap-2 rounded-[var(--radius-md)] border-2 border-dashed border-line-strong text-sm font-medium text-ink-2 hover:border-brand-600 hover:text-brand-700">
+                  <label className="flex aspect-[4/3] cursor-pointer flex-col items-center justify-center gap-2 rounded-[var(--radius-md)] border-2 border-dashed border-line-strong text-sm font-medium text-ink-2 focus-within:border-brand-600 hover:border-brand-600 hover:text-brand-700">
                     <ImagePlus className="size-6" />
                     {uploading > 0 ? S.uploading : S.addPhotos}
                     <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only" onChange={(e) => upload(e.target.files)} disabled={uploading > 0} />
@@ -366,24 +391,46 @@ export function ListingForm({
                 </li>
               )}
             </ul>
+            <p className="tabular mt-3 text-sm text-ink-3" aria-live="polite">{S.photoCount.replace("{n}", String(images.length))}</p>
           </div>
         )}
 
-        {step === 3 && (
+        {step === DETAILS_STEP && (
+          <div className="grid gap-5">
+            <Field label={S.listingTitle} htmlFor="title" hint={S.titleHint} error={err("title")} required requiredLabel={dict.common.required}>
+              <Input id="title" value={v.title} maxLength={100} invalid={!!errors.title} onChange={(e) => { setTitleTouched(true); set("title", e.target.value); }} required />
+            </Field>
+            <Field label={S.description} htmlFor="description" hint={S.descriptionHint} error={err("description")} required requiredLabel={dict.common.required}>
+              <Textarea id="description" value={v.description} maxLength={5000} rows={6} onChange={(e) => set("description", e.target.value)} />
+            </Field>
+            <Field label={S.knownDefects} htmlFor="knownDefects" hint={S.knownDefectsHint} error={err("knownDefects")} optional optionalLabel={dict.common.optional}>
+              <Textarea id="knownDefects" value={v.knownDefects} maxLength={2000} rows={4} invalid={!!errors.knownDefects} onChange={(e) => set("knownDefects", e.target.value)} />
+            </Field>
+          </div>
+        )}
+
+        {step === REVIEW_STEP && (
           <div className="flex flex-col gap-5">
             <div className="flex gap-4">
               {images[0] && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={images[0].thumbUrl} alt="" className="hidden h-24 w-32 rounded-[var(--radius-md)] object-cover sm:block" />
               )}
-              <div>
-                <h2 className="text-xl font-bold">{v.title}</h2>
+              <div className="min-w-0">
+                <h2 className="text-xl font-bold"><bdi>{v.title}</bdi></h2>
                 <p className="tabular mt-1 text-lg font-semibold text-navy-900">{v.priceEgp && formatPrice(Number(v.priceEgp.replace(/\D/g, "")), locale)}</p>
                 <p className="mt-1 text-sm text-ink-2">
                   {[mk && name(mk), v.modelId === "other" ? v.modelOther : md && name(md), v.year, v.mileageKm && formatKm(Number(v.mileageKm.replace(/\D/g, "")), locale), city && name(city)].filter(Boolean).join("، ")}
                 </p>
               </div>
             </div>
+            <dl className="grid gap-x-6 gap-y-2 rounded-[var(--radius-md)] bg-canvas p-4 text-sm sm:grid-cols-2">
+              <div className="flex justify-between gap-3"><dt className="text-ink-3">{S.transmission}</dt><dd>{dict.enums.transmission[v.transmission as keyof typeof dict.enums.transmission]}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-ink-3">{S.fuel}</dt><dd>{dict.enums.fuel[v.fuelType as keyof typeof dict.enums.fuel]}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-ink-3">{S.condition}</dt><dd>{dict.enums.condition[v.condition as keyof typeof dict.enums.condition]}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-ink-3">{S.photosTitle}</dt><dd className="tabular">{images.length}</dd></div>
+              <div className="flex justify-between gap-3 sm:col-span-2"><dt className="text-ink-3">{S.knownDefects}</dt><dd dir="auto" className="truncate">{v.knownDefects.trim() || "—"}</dd></div>
+            </dl>
             {(() => {
               const gaps = [...new Set([...missing, ...(images.length < 3 ? (["photos"] as const) : []), ...(v.description.trim().length < 30 ? (["description"] as const) : [])])];
               return gaps.length > 0 ? (
@@ -392,7 +439,7 @@ export function ListingForm({
                   <ul className="mt-1 list-disc ps-5">
                     {gaps.map((g) => (
                       <li key={g}>
-                        <button type="button" className="underline" onClick={() => setStep(g === "photos" ? 2 : 1)}>{S.missing[g]}</button>
+                        <button type="button" className="underline" onClick={() => setStep(g === "photos" ? PHOTOS_STEP : DETAILS_STEP)}>{S.missing[g]}</button>
                       </li>
                     ))}
                   </ul>
@@ -408,13 +455,13 @@ export function ListingForm({
             {dict.common.back}
           </Button>
           <div className="flex gap-2">
-            {step >= 1 && (
-              <Button type="button" variant="secondary" loading={pending && step !== 3} onClick={() => localCheck(STEP_FIELDS[1]) && persist("draft", () => toast(S.savedDraft))}>
+            {step >= 2 && step !== REVIEW_STEP && (
+              <Button type="button" variant="secondary" disabled={pending} onClick={() => localCheck([0, 1, 2]) && persist("draft", () => toast(S.savedDraft))}>
                 {S.saveDraft}
               </Button>
             )}
-            {step < 3 ? (
-              <Button type="button" onClick={next} loading={pending && step === 1}>{dict.common.continue}</Button>
+            {step < REVIEW_STEP ? (
+              <Button type="button" onClick={next} loading={pending}>{dict.common.continue}</Button>
             ) : canSubmit ? (
               <Button
                 type="button"

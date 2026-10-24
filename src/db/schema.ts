@@ -211,6 +211,8 @@ export const listings = pgTable(
     engineCc: integer(),
     title: text().notNull(),
     description: text().notNull().default(""),
+    /** Seller-declared known defects. NULL = seller didn't state any (not "no defects"). */
+    knownDefects: text(),
     cityId: smallint()
       .notNull()
       .references(() => cities.id),
@@ -228,6 +230,7 @@ export const listings = pgTable(
     check("listings_mileage_range", sql`${t.mileageKm} >= 0 AND ${t.mileageKm} <= 2000000`),
     check("listings_year_range", sql`${t.year} >= 1950 AND ${t.year} <= 2100`),
     check("listings_engine_range", sql`${t.engineCc} IS NULL OR (${t.engineCc} >= 50 AND ${t.engineCc} <= 10000)`),
+    check("listings_known_defects_length", sql`${t.knownDefects} IS NULL OR char_length(${t.knownDefects}) <= 2000`),
     index("listings_status_published_idx").on(t.status, t.publishedAt),
     index("listings_make_model_idx").on(t.makeId, t.modelId),
     index("listings_price_idx").on(t.priceEgp),

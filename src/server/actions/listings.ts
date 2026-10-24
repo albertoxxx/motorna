@@ -121,6 +121,7 @@ export async function saveListing(
     area: input.area ?? null,
     title: input.title,
     description: input.description,
+    knownDefects: input.knownDefects ?? null,
   };
 
   let id: string;

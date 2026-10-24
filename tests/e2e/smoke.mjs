@@ -79,6 +79,7 @@ try {
 
   // Seller creates a listing
   const S = await newCtx();
+  globalThis.__pages = { seller: S.page };
   await signUp(S.page, seller);
   ok("seller signed up");
   await go(S.page, "/en/sell");
@@ -88,22 +89,43 @@ try {
   await selectByText(S.page, "#year", "2019");
   await S.page.type("#trim", trim);
   await clickText(S.page, "Continue");
+  // Step 2: specifications
   await S.page.waitForSelector("#mileageKm");
   await S.page.type("#mileageKm", "61000");
-  await S.page.type("#priceEgp", "880,000");
-  await S.page.type("#description", "Agency maintained, original paint, two keys. Selling because I'm moving abroad.");
   await clickText(S.page, "Continue");
+  // Step 3: price & location (saves the draft)
+  await S.page.waitForSelector("#priceEgp");
+  await S.page.type("#priceEgp", "880,000");
+  await clickText(S.page, "Continue");
+  // Step 4: photos
   await S.page.waitForSelector("input[type=file]");
   const editUrl = S.page.url();
-  assert(/\/account\/listings\/[0-9a-f-]{36}\/edit$/.test(editUrl), "draft saved and URL is resumable");
-  const listingId = editUrl.match(/listings\/([0-9a-f-]{36})/)[1];
+  assert(/\/sell\?draft=[0-9a-f-]{36}$/.test(editUrl), "draft saved and URL is resumable");
+  const listingId = editUrl.match(/draft=([0-9a-f-]{36})/)[1];
   const input = await S.page.$("input[type=file]");
   await input.uploadFile(...photos);
   await S.page.waitForFunction(() => document.querySelectorAll("li img").length >= 3, { timeout: 60000 });
   ok("3 photos uploaded and processed");
   await shot(S.page, "e2e-photos");
+  // Back to step 1 and forward again: entered data must be preserved
+  await clickText(S.page, "Back");
+  await clickText(S.page, "Back");
+  await S.page.waitForSelector("#mileageKm");
+  assert((await S.page.$eval("#mileageKm", (e) => e.value)) === "61000", "data preserved when moving between steps");
   await clickText(S.page, "Continue");
-  await Promise.all([S.page.waitForNavigation({ waitUntil: "networkidle0" }), clickText(S.page, "Submit for review")]);
+  await S.page.waitForSelector("#priceEgp");
+  await clickText(S.page, "Continue");
+  await S.page.waitForSelector("input[type=file]");
+  await clickText(S.page, "Continue");
+  // Step 5: description & known defects
+  await S.page.waitForSelector("#description");
+  await S.page.type("#description", "Agency maintained, original paint, two keys. Selling because I'm moving abroad.");
+  await S.page.type("#knownDefects", "Small scratch on rear bumper");
+  await clickText(S.page, "Continue");
+  await S.page.waitForFunction(() => document.body.innerText.includes("Small scratch on rear bumper"));
+  ok("review step shows known defects");
+  await clickText(S.page, "Submit for review");
+  await S.page.waitForFunction(() => location.pathname.endsWith("/en/account/listings") && document.body.innerText.includes("In review"), { timeout: 60000 });
   assert(S.page.url().endsWith("/en/account/listings"), "submitted for review");
   assert((await S.page.content()).includes("In review"), "listing shows In review");
   const slug = await S.page.$$eval("a[href*='/en/cars/']", (as, t) => as.find((a) => a.textContent.includes(t))?.getAttribute("href"), trim);
@@ -134,6 +156,10 @@ try {
   assert((await B.page.$$eval("article", (a) => a.length)) === 1, "keyword search finds exactly the new listing");
   await go(B.page, slug);
   await shot(B.page, "e2e-detail-en");
+  const detailText = await B.page.evaluate(() => document.body.innerText);
+  assert(detailText.includes("Small scratch on rear bumper"), "known defects shown on the listing page");
+  assert(detailText.includes("Listing review") && detailText.includes("Reviewed") && detailText.includes("Not verified") && detailText.includes("Not inspected"), "trust panel shows separate statuses, only review marked done");
+  assert(!!(await B.page.$$eval("button", (bs) => bs.some((b) => b.textContent.trim() === "Share"))), "share action present");
   await clickText(B.page, "Save");
   await B.page.waitForFunction(() => [...document.querySelectorAll("button[aria-pressed=true]")].length > 0);
   ok("buyer saved the car");
@@ -185,6 +211,9 @@ try {
   await go(A.page, "/en");
   const logoText = await A.page.$eval("header a[href='/en']", (a) => a.textContent.trim());
   assert(logoText === "MOTORNA", `logo text reads "MOTORNA" (got "${logoText}")`);
+  await go(A.page, "/en/cars?mileageMin=1000000");
+  const minKm = await A.page.evaluate(() => document.body.innerText);
+  assert(minKm.includes("0 results") && minKm.includes("No cars match these filters"), "min-mileage filter narrows server results (empty state + fallback)");
   await go(A.page, "/en/cars?make=toyota");
   const forms = await A.page.$$eval("input[placeholder*='Corolla']", (els) => els.length);
   assert(forms === 1, "exactly one filter form on the cars page (desktop)");
@@ -217,6 +246,7 @@ try {
   console.log(`\nAll ${step} checks passed.`);
 } catch (e) {
   console.error(e.message ?? e);
+  if (SHOTS) for (const [n, p] of Object.entries(globalThis.__pages ?? {})) await p.screenshot({ path: path.join(SHOTS, `fail-${n}.png`) }).catch(() => {});
   process.exitCode = 1;
 } finally {
   await browser.close();

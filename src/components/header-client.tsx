@@ -80,8 +80,8 @@ export function HeaderClient({ locale, nav, user, unread }: Props) {
           <Link href={p("/cars")} className={cn("whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium", isActive(p("/cars")) ? "text-ink" : "text-ink-2 hover:text-ink")}>
             {nav.browse}
           </Link>
-          <Link href={p("/verification")} className={cn("whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium", isActive(p("/verification")) ? "text-ink" : "text-ink-2 hover:text-ink")}>
-            {nav.howItWorks}
+          <Link href={p("/faq")} className={cn("whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium", isActive(p("/faq")) ? "text-ink" : "text-ink-2 hover:text-ink")}>
+            {nav.help}
           </Link>
         </nav>
         <div className="ms-auto flex items-center gap-2">
@@ -153,7 +153,7 @@ export function HeaderClient({ locale, nav, user, unread }: Props) {
               {nav.sell}
             </Link>
             <Link href={p("/cars")} className="rounded-md px-2 py-3 font-medium text-ink">{nav.browse}</Link>
-            <Link href={p("/verification")} className="rounded-md px-2 py-3 font-medium text-ink">{nav.howItWorks}</Link>
+            <Link href={p("/faq")} className="rounded-md px-2 py-3 font-medium text-ink">{nav.help}</Link>
             <div className="my-2 border-t border-line" />
             {user ? (
               <>

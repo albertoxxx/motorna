@@ -323,6 +323,40 @@ describe("unlisted models", () => {
   });
 });
 
+describe("known defects", () => {
+  it("are saved, trimmed, capped at 2000 chars, and editing them on a live listing sends it back to review", async () => {
+    current = users.seller;
+    const r = await listings.saveListing(null, { ...input(), knownDefects: "  Small dent on rear bumper  " }, "draft");
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const [l] = await db.select().from(schema.listings).where(eq(schema.listings.id, r.data.id));
+    expect(l.knownDefects).toBe("Small dent on rear bumper");
+
+    const empty = await listings.saveListing(r.data.id, { ...input(), knownDefects: "   " }, "draft");
+    expect(empty.ok).toBe(true);
+    const [l2] = await db.select().from(schema.listings).where(eq(schema.listings.id, r.data.id));
+    expect(l2.knownDefects).toBeNull();
+
+    const tooLong = await listings.saveListing(r.data.id, { ...input(), knownDefects: "x".repeat(2001) }, "draft");
+    expect(tooLong.ok).toBe(false);
+    if (!tooLong.ok) expect(tooLong.fields?.knownDefects).toBe("knownDefectsLength");
+
+    const id = await publishedListing();
+    current = users.seller;
+    const edited = await listings.saveListing(id, { ...input(), knownDefects: "A/C needs regas" }, "draft");
+    expect(edited.ok && edited.data.status).toBe("pending_review");
+  });
+
+  it("server rejects missing required fields even if the client is bypassed", async () => {
+    current = users.seller;
+    for (const field of ["priceEgp", "mileageKm", "year", "cityId", "makeId"] as const) {
+      const bad = { ...input(), [field]: "" };
+      const r = await listings.saveListing(null, bad, "draft");
+      expect(r.ok, field).toBe(false);
+    }
+  });
+});
+
 describe("rate limiting", () => {
   it("blocks after the limit within a window", async () => {
     const subject = crypto.randomUUID();

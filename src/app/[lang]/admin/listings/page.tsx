@@ -55,6 +55,12 @@ export default async function ModerationPage({ params }: PageProps<"/[lang]/admi
                 ))}
               </div>
               <p dir="auto" className="mt-4 line-clamp-4 whitespace-pre-line text-sm text-ink-2">{l.description}</p>
+              {l.knownDefects && (
+                <p dir="auto" className="mt-2 whitespace-pre-line text-sm text-ink-2">
+                  <span className="font-semibold text-ink">{dict.listing.knownDefects}: </span>
+                  {l.knownDefects}
+                </p>
+              )}
               <div className="mt-4 border-t border-line pt-4">
                 <ModerationActions listingId={l.id} dict={{ admin: dict.admin, errors: dict.errors, common: dict.common }} />
               </div>

@@ -51,7 +51,15 @@ export function FilterChips({
           : `${S.chipUpTo} ${filters.yearMax}`;
     chips.push({ key: ["yearMin", "yearMax"], label });
   }
-  if (filters.mileageMax !== undefined) chips.push({ key: ["mileageMax"], label: `${S.chipUpTo} ${formatKm(filters.mileageMax, locale)}` });
+  if (filters.mileageMin !== undefined || filters.mileageMax !== undefined) {
+    const label =
+      filters.mileageMin !== undefined && filters.mileageMax !== undefined
+        ? `${formatKm(filters.mileageMin, locale)} – ${formatKm(filters.mileageMax, locale)}`
+        : filters.mileageMax !== undefined
+          ? `${S.chipUpTo} ${formatKm(filters.mileageMax, locale)}`
+          : `${S.chipFrom} ${formatKm(filters.mileageMin!, locale)}`;
+    chips.push({ key: ["mileageMin", "mileageMax"], label });
+  }
   if (filters.condition) chips.push({ key: ["condition"], label: dict.enums.condition[filters.condition] });
   if (filters.transmission) chips.push({ key: ["transmission"], label: dict.enums.transmission[filters.transmission] });
   if (filters.fuel) chips.push({ key: ["fuel"], label: dict.enums.fuel[filters.fuel] });

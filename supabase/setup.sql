@@ -266,6 +266,10 @@ CREATE INDEX "verifications_identifier_idx" ON "verifications" USING btree ("ide
 ALTER TABLE "vehicle_models" ADD COLUMN "is_verified" boolean DEFAULT true NOT NULL;
 ALTER TABLE "vehicle_models" ADD COLUMN "created_by_id" text;
 
+-- 0002_known_defects.sql
+ALTER TABLE "listings" ADD COLUMN "known_defects" text;
+ALTER TABLE "listings" ADD CONSTRAINT "listings_known_defects_length" CHECK ("listings"."known_defects" IS NULL OR char_length("listings"."known_defects") <= 2000);
+
 -- Reference data: governorates
 INSERT INTO cities (id, slug, name_en, name_ar, is_launch, sort_order) VALUES (1, 'alexandria', 'Alexandria', 'الإسكندرية', true, 1) ON CONFLICT (id) DO NOTHING;
 INSERT INTO cities (id, slug, name_en, name_ar, is_launch, sort_order) VALUES (2, 'cairo', 'Cairo', 'القاهرة', false, 2) ON CONFLICT (id) DO NOTHING;
@@ -1007,6 +1011,7 @@ CREATE SCHEMA IF NOT EXISTS drizzle;
 CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at bigint);
 INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('6870c4f47269d6c12aa952ef16ac5cc67eeb42aaa78a1c3f3b167e9a52c0373b', 1792860094589);
 INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('8819b5613e91dbb278abf50eda98b2a83c3eb97ac9ac472242320c7e88c09958', 1792866478440);
+INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('c76ea95a47a93caee5552f6ba2c81e5014d0be46ec3a3caa7b767bb69cf0a687', 1792872332753);
 
 COMMIT;
 

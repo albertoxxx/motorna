@@ -69,7 +69,7 @@ export function FavoriteButton({
       aria-label={label}
       title={label}
       disabled={pending}
-      className="grid size-9 place-items-center rounded-full bg-white/95 text-navy-900 shadow-sm ring-1 ring-black/5 transition hover:scale-105"
+      className="grid size-10 place-items-center rounded-full bg-white/95 text-navy-900 shadow-sm ring-1 ring-black/5 transition hover:scale-105"
     >
       <Heart className={cn("size-[18px]", saved && "fill-danger-600 text-danger-600")} />
     </button>

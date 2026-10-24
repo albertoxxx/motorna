@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarDays, Gauge, Settings2, Fuel, MapPin, ShieldAlert, ShieldCheck, UserRound, Pencil, MessageSquare } from "lucide-react";
+import { CalendarDays, Gauge, Settings2, Fuel, MapPin, ShieldAlert, UserRound, Pencil, MessageSquare } from "lucide-react";
 import { resolveLocale } from "@/i18n/server";
 import { t } from "@/i18n/t";
 import type { Locale } from "@/i18n/config";
@@ -14,6 +14,8 @@ import { siteUrl } from "@/lib/site";
 import { Gallery } from "@/components/gallery";
 import { ContactPanel } from "@/components/contact-panel";
 import { ReportButton } from "@/components/report-button";
+import { ShareButton } from "@/components/share-button";
+import { TrustPanel } from "@/components/trust-panel";
 import { FavoriteButton } from "@/components/favorite-button";
 import { ListingCard } from "@/components/listing-card";
 import { PlateTag } from "@/components/logo";
@@ -178,6 +180,15 @@ export default async function ListingPage({ params }: PageProps<"/[lang]/cars/[s
             )}
           </section>
 
+          <section aria-labelledby="defects">
+            <h2 id="defects" className="mb-3 text-lg font-bold">{L.knownDefects}</h2>
+            {l.knownDefects?.trim() ? (
+              <p dir="auto" className="max-w-[70ch] whitespace-pre-line leading-relaxed text-ink-2">{l.knownDefects}</p>
+            ) : (
+              <p className="text-ink-3">{L.noKnownDefects}</p>
+            )}
+          </section>
+
           <aside className="rounded-[var(--radius-lg)] border border-warning-600/30 bg-warning-50 p-5">
             <h2 className="mb-2 flex items-center gap-2 font-semibold text-warning-700">
               <ShieldAlert className="size-5" />
@@ -230,12 +241,6 @@ export default async function ListingPage({ params }: PageProps<"/[lang]/cars/[s
               {L.postedAt} {formatRelative(l.publishedAt, locale)}
             </p>
           )}
-          {l.status === "published" && (
-            <Link href={`/${locale}/verification`} className="mt-4 flex items-start gap-2 rounded-[var(--radius-md)] bg-success-50 px-3 py-2.5 text-sm text-success-700 hover:underline">
-              <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden />
-              <span>{L.reviewedNotice}</span>
-            </Link>
-          )}
         </div>
 
         <div id="contact" className="scroll-mt-24 rounded-[var(--radius-lg)] border border-line bg-surface p-5">
@@ -260,7 +265,7 @@ export default async function ListingPage({ params }: PageProps<"/[lang]/cars/[s
             <p className="text-sm text-ink-3">{dict.messages.listingUnavailable}</p>
           )}
           {!isOwner && l.status === "published" && (
-            <div className="mt-4 flex items-center justify-between gap-3 border-t border-line pt-4">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4">
               <FavoriteButton
                 listingId={l.id}
                 initial={saved.has(l.id)}
@@ -269,6 +274,7 @@ export default async function ListingPage({ params }: PageProps<"/[lang]/cars/[s
                 variant="full"
                 labels={{ save: L.save, saved: L.saved, signIn: L.saveSignIn, error: dict.errors.generic }}
               />
+              <ShareButton title={`${make} ${model} ${l.year}`} labels={{ share: L.share, copied: L.linkCopied, failed: L.shareFailed }} />
               <ReportButton
                 listingId={l.id}
                 signedIn={!!user}
@@ -278,6 +284,8 @@ export default async function ListingPage({ params }: PageProps<"/[lang]/cars/[s
             </div>
           )}
         </div>
+
+        <TrustPanel listingStatus={l.status} dict={dict} locale={locale} />
 
         <div className="rounded-[var(--radius-lg)] border border-line bg-surface p-5">
           <h2 className="mb-3 text-sm font-semibold text-ink-3">{L.seller}</h2>
@@ -296,8 +304,7 @@ export default async function ListingPage({ params }: PageProps<"/[lang]/cars/[s
           <p className="mt-3 text-sm text-ink-2">
             <span className="tabular font-semibold">{formatNumber(sellerActive, locale)}</span> {L.activeListings}
           </p>
-          <p className="mt-1 text-xs text-ink-3">{dict.seller.notVerified}</p>
-          <Link href={`/${locale}/sellers/${seller.id}`} className="mt-3 inline-block text-sm font-medium text-brand-700 hover:underline">
+                    <Link href={`/${locale}/sellers/${seller.id}`} className="mt-3 inline-block text-sm font-medium text-brand-700 hover:underline">
             {L.viewProfile}
           </Link>
         </div>

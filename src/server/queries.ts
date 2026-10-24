@@ -113,6 +113,7 @@ export async function moderationQueue() {
       mileageKm: L.mileageKm,
       priceEgp: L.priceEgp,
       description: L.description,
+      knownDefects: L.knownDefects,
       submittedAt: L.submittedAt,
       makeNameEn: MK.nameEn,
       modelNameEn: MD.nameEn,

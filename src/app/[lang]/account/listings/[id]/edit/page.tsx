@@ -58,6 +58,7 @@ export default async function EditListingPage({ params }: PageProps<"/[lang]/acc
           area: l.area ?? "",
           title: l.title,
           description: l.description,
+          knownDefects: l.knownDefects ?? "",
         }}
         initialImages={data.images}
       />

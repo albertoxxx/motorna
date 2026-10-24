@@ -15,6 +15,8 @@ export function Field({
   error,
   optional,
   optionalLabel,
+  required,
+  requiredLabel,
   children,
   className,
   htmlFor,
@@ -24,6 +26,8 @@ export function Field({
   error?: ReactNode;
   optional?: boolean;
   optionalLabel?: string;
+  required?: boolean;
+  requiredLabel?: string;
   children: ReactNode;
   className?: string;
   htmlFor: string;
@@ -32,6 +36,12 @@ export function Field({
     <div className={cn("flex flex-col gap-1.5", className)}>
       <label htmlFor={htmlFor} className="text-sm font-medium text-ink">
         {label}
+        {required && (
+          <>
+            <span className="ms-0.5 text-danger-600" aria-hidden>*</span>
+            <span className="sr-only"> ({requiredLabel})</span>
+          </>
+        )}
         {optional && <span className="ms-1.5 font-normal text-ink-3">({optionalLabel})</span>}
       </label>
       {children}

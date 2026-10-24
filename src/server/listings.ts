@@ -90,6 +90,7 @@ function filterConditions(f: SearchFilters): SQL[] {
   if (f.priceMax !== undefined) conds.push(lte(L.priceEgp, f.priceMax));
   if (f.yearMin !== undefined) conds.push(gte(L.year, f.yearMin));
   if (f.yearMax !== undefined) conds.push(lte(L.year, f.yearMax));
+  if (f.mileageMin !== undefined) conds.push(gte(L.mileageKm, f.mileageMin));
   if (f.mileageMax !== undefined) conds.push(lte(L.mileageKm, f.mileageMax));
   if (f.condition) conds.push(eq(L.condition, f.condition));
   if (f.transmission) conds.push(eq(L.transmission, f.transmission));
@@ -194,6 +195,27 @@ export async function makesWithListings() {
     .where(publicListing)
     .groupBy(MK.id)
     .orderBy(desc(sql`count(${L.id})`), asc(MK.nameEn));
+}
+
+/**
+ * Published listings whose current price is below an earlier recorded price,
+ * with the drop in the last 30 days. Backed only by listing_price_history.
+ */
+export async function priceReducedListings(limit = 4) {
+  const PH = schema.listingPriceHistory;
+  const rows = await db
+    .select({ ...cardColumns, previousPrice: sql<number>`max(${PH.oldPriceEgp})::bigint` })
+    .from(L)
+    .innerJoin(MK, eq(MK.id, L.makeId))
+    .innerJoin(MD, eq(MD.id, L.modelId))
+    .innerJoin(C, eq(C.id, L.cityId))
+    .innerJoin(PH, and(eq(PH.listingId, L.id), sql`${PH.oldPriceEgp} > ${PH.newPriceEgp}`, sql`${PH.changedAt} > now() - interval '30 days'`))
+    .where(publicListing)
+    .groupBy(L.id, MK.id, MD.id, C.id)
+    .having(sql`max(${PH.oldPriceEgp}) > ${L.priceEgp}`)
+    .orderBy(desc(sql`max(${PH.changedAt})`))
+    .limit(limit);
+  return rows.map(({ previousPrice, ...r }) => ({ item: toCard(r), previousPrice: Number(previousPrice) }));
 }
 
 export async function budgetBandCounts(bands: [number, number | null][]) {

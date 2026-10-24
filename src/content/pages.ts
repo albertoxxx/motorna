@@ -28,7 +28,7 @@ const ar: Record<PageKey, StaticPage> = {
     title: "الأسئلة الشائعة",
     sections: [
       { heading: "الإعلان مجاني؟", paragraphs: ["أيوه، الإعلان الأساسي مجاني للأفراد."] },
-      { heading: "إعلاني بيتنشر إمتى؟", paragraphs: ["بعد المراجعة، وعادةً خلال يوم عمل. لو اترفض هتشوف السبب في صفحة إعلاناتك وتقدر تعدّله وتبعته تاني."] },
+      { heading: "إعلاني بيتنشر إمتى؟", paragraphs: ["بعد ما فريقنا يراجعه. تقدر تتابع الحالة من «إعلاناتي»، ولو اترفض هتشوف السبب وتقدر تعدّله وتبعته تاني."] },
       { heading: "ليه رقمي مش ظاهر؟", paragraphs: ["الرقم بيظهر للمستخدمين المسجلين بس، ولو انت فعّلت ده من الملف الشخصي. غير كده التواصل بيكون بالرسائل."] },
       { heading: "البائع طلب عربون قبل المعاينة، أعمل إيه؟", paragraphs: ["ماتحولش أي فلوس. بلّغ عن الإعلان فورًا. موتورنا مابيطلبش ولا بيستلم أي مدفوعات."] },
       { heading: "أعدّل السعر من غير ما الإعلان يرجع للمراجعة؟", paragraphs: ["أيوه. تعديل السعر بس بيفضّل الإعلان منشور. تعديل باقي البيانات أو صورة الغلاف بيرجّعه للمراجعة."] },
@@ -84,7 +84,7 @@ const en: Record<PageKey, StaticPage> = {
     title: "Frequently asked questions",
     sections: [
       { heading: "Is listing free?", paragraphs: ["Yes, basic listings are free for individuals."] },
-      { heading: "When will my listing go live?", paragraphs: ["After review, usually within one business day. If it's rejected you'll see why in My listings and can edit and resubmit."] },
+      { heading: "When will my listing go live?", paragraphs: ["Once our team has reviewed it. Track its status in My listings; if it's rejected you'll see why and can edit and resubmit."] },
       { heading: "Why isn't my number shown?", paragraphs: ["Your number is only shown to signed-in users, and only if you enable it in your profile. Otherwise buyers message you."] },
       { heading: "A seller asked for a deposit before I saw the car. What do I do?", paragraphs: ["Don't send money. Report the listing right away. MOTORNA never asks for or holds payments."] },
       { heading: "Can I change the price without re-review?", paragraphs: ["Yes. Changing only the price keeps the listing live. Changing other details or the cover photo sends it back to review."] },

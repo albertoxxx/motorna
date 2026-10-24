@@ -1,0 +1,2 @@
+ALTER TABLE "listings" ADD COLUMN "known_defects" text;--> statement-breakpoint
+ALTER TABLE "listings" ADD CONSTRAINT "listings_known_defects_length" CHECK ("listings"."known_defects" IS NULL OR char_length("listings"."known_defects") <= 2000);

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { formatKm } from "@/lib/format";
 import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/dictionaries/ar";
 import type { SearchFilters } from "@/lib/search-params";
@@ -32,6 +33,7 @@ function FilterForm({ locale, dict, filters, makes, models, cities, onDone }: Pr
   const makeModels = useMemo(() => models.filter((m) => m.makeId === makeId), [models, makeId]);
   const thisYear = new Date().getFullYear();
   const years = Array.from({ length: 40 }, (_, i) => thisYear + 1 - i);
+  const kmLabel = (k: number) => formatKm(k, locale);
   const set = <K extends keyof SearchFilters>(k: K, v: SearchFilters[K]) => setF((o) => ({ ...o, [k]: v }));
   const num = (v: string) => {
     const n = Number(v.replace(/[^\d]/g, ""));
@@ -108,15 +110,26 @@ function FilterForm({ locale, dict, filters, makes, models, cities, onDone }: Pr
           </Select>
         </label>
       </div>
-      <label className={label}>
-        {s.mileageMax}
-        <Select value={f.mileageMax ?? ""} onChange={(e) => set("mileageMax", num(e.target.value))}>
-          <option value="">{dict.common.any}</option>
-          {[10_000, 30_000, 60_000, 100_000, 150_000, 200_000].map((k) => (
-            <option key={k} value={k}>{new Intl.NumberFormat(locale === "ar" ? "ar-EG-u-nu-latn" : "en-EG").format(k)} {locale === "ar" ? "كم" : "km"}</option>
-          ))}
-        </Select>
-      </label>
+      <div className="grid grid-cols-2 gap-3">
+        <label className={label}>
+          {s.mileageMin}
+          <Select value={f.mileageMin ?? ""} onChange={(e) => set("mileageMin", num(e.target.value))}>
+            <option value="">{dict.common.any}</option>
+            {[0, 10_000, 30_000, 60_000, 100_000, 150_000].map((k) => (
+              <option key={k} value={k}>{kmLabel(k)}</option>
+            ))}
+          </Select>
+        </label>
+        <label className={label}>
+          {s.mileageMax}
+          <Select value={f.mileageMax ?? ""} onChange={(e) => set("mileageMax", num(e.target.value))}>
+            <option value="">{dict.common.any}</option>
+            {[10_000, 30_000, 60_000, 100_000, 150_000, 200_000].map((k) => (
+              <option key={k} value={k}>{kmLabel(k)}</option>
+            ))}
+          </Select>
+        </label>
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <label className={label}>
           {s.transmission}

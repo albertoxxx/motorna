@@ -70,6 +70,8 @@ describe("search filters hit the database", () => {
     [{ yearMin: "2021" }, 3],
     [{ yearMax: "2016" }, 1],
     [{ mileageMax: "1000" }, 2],
+    [{ mileageMin: "50000" }, 2],
+    [{ mileageMin: "1000", mileageMax: "100000" }, 1],
     [{ condition: "new" }, 2],
     [{ transmission: "manual" }, 1],
     [{ fuel: "electric" }, 1],

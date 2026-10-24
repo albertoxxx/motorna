@@ -12,6 +12,7 @@ export type SearchFilters = {
   priceMax?: number;
   yearMin?: number;
   yearMax?: number;
+  mileageMin?: number;
   mileageMax?: number;
   condition?: (typeof CONDITIONS)[number];
   transmission?: (typeof TRANSMISSIONS)[number];
@@ -45,6 +46,7 @@ export function parseSearchParams(raw: Raw): SearchFilters {
     priceMax: int(first(raw.priceMax), 0, 1_000_000_000),
     yearMin: int(first(raw.yearMin), 1950, 2100),
     yearMax: int(first(raw.yearMax), 1950, 2100),
+    mileageMin: int(first(raw.mileageMin), 0, 2_000_000),
     mileageMax: int(first(raw.mileageMax), 0, 2_000_000),
     condition: oneOf(first(raw.condition), CONDITIONS),
     transmission: oneOf(first(raw.transmission), TRANSMISSIONS),
@@ -57,6 +59,9 @@ export function parseSearchParams(raw: Raw): SearchFilters {
   if (!f.make) f.model = undefined;
   if (f.priceMin !== undefined && f.priceMax !== undefined && f.priceMin > f.priceMax) {
     [f.priceMin, f.priceMax] = [f.priceMax, f.priceMin];
+  }
+  if (f.mileageMin !== undefined && f.mileageMax !== undefined && f.mileageMin > f.mileageMax) {
+    [f.mileageMin, f.mileageMax] = [f.mileageMax, f.mileageMin];
   }
   if (f.yearMin !== undefined && f.yearMax !== undefined && f.yearMin > f.yearMax) {
     [f.yearMin, f.yearMax] = [f.yearMax, f.yearMin];
@@ -80,7 +85,7 @@ export function toQueryString(f: Partial<SearchFilters>): string {
 export function activeFilterCount(f: SearchFilters) {
   const keys: (keyof SearchFilters)[] = [
     "q", "make", "model", "priceMin", "priceMax", "yearMin", "yearMax",
-    "mileageMax", "condition", "transmission", "fuel", "body", "city",
+    "mileageMin", "mileageMax", "condition", "transmission", "fuel", "body", "city",
   ];
   return keys.filter((k) => f[k] !== undefined).length;
 }

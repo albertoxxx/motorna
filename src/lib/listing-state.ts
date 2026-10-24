@@ -34,6 +34,7 @@ export const MATERIAL_FIELDS = [
   "area",
   "title",
   "description",
+  "knownDefects",
 ] as const;
 
 export function requiresReReview(
