@@ -226,6 +226,14 @@ try {
   await go(A.page, "/en/cars?mileageMin=1000000");
   const minKm = await A.page.evaluate(() => document.body.innerText);
   assert(minKm.includes("0 results") && minKm.includes("No cars match these filters"), "min-mileage filter narrows server results (empty state + fallback)");
+  // Make picker lists makes with live cars first; an empty make says so plainly
+  await go(A.page, "/en");
+  const groups = await A.page.$$eval("form[role=search] optgroup", (gs) => gs.map((g) => g.label));
+  assert(groups[0] === "Available now", "home make picker shows makes with live cars first");
+  const budgets = await A.page.$$eval("form[role=search] select", (ss) => ss.flatMap((s) => [...s.options].map((o) => o.value)));
+  assert(budgets.includes("10000000"), "budget list reaches above EGP 5M");
+  await go(A.page, "/en/cars?make=ferrari");
+  assert((await A.page.evaluate(() => document.body.innerText)).includes("No Ferrari cars listed yet"), "empty make search explains there are no cars of that make yet");
   await go(A.page, "/en/cars?make=toyota");
   const forms = await A.page.$$eval("input[placeholder*='Corolla']", (els) => els.length);
   assert(forms === 1, "exactly one filter form on the cars page (desktop)");

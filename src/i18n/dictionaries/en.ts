@@ -155,6 +155,10 @@ const en: Dictionary = {
     comingNextBody: "Fair-price estimates, an assistant that shortlists cars for your needs, side-by-side comparison, and inspection booking.",
   },
   search: {
+    availableNow: "Available now",
+    allMakes: "All makes",
+    noMakeTitle: "No {make} cars listed yet",
+    noMakeBody: "MOTORNA is just getting started and listings appear after review. See the cars available now below.",
     title: "Cars for sale",
     resultsCount: "{n} results",
     resultsCountOne: "1 result",
@@ -219,6 +223,7 @@ const en: Dictionary = {
     postedAt: "Posted",
     seller: "Seller",
     memberSince: "Member since",
+    activeListingsOne: "1 active listing",
     activeListings: "active listings",
     viewProfile: "Seller profile",
     contactSeller: "Message seller",

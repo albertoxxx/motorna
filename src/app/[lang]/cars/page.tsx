@@ -4,7 +4,7 @@ import { resolveLocale } from "@/i18n/server";
 import { t } from "@/i18n/t";
 import { getCurrentUser } from "@/server/session";
 import { favoriteIds } from "@/server/queries";
-import { getCities, getMakes, getModels, latestListings, searchListings } from "@/server/listings";
+import { getCities, getMakes, getModels, latestListings, makesWithListings, searchListings } from "@/server/listings";
 import { activeFilterCount, PAGE_SIZE, parseSearchParams, toQueryString } from "@/lib/search-params";
 import { ListingCard } from "@/components/listing-card";
 import { FiltersButton, FiltersPanel, SortSelect } from "@/components/filters";
@@ -29,12 +29,13 @@ export async function generateMetadata({ params, searchParams }: PageProps<"/[la
 export default async function CarsPage({ params, searchParams }: PageProps<"/[lang]/cars">) {
   const { locale, dict } = await resolveLocale(params);
   const filters = parseSearchParams(await searchParams);
-  const [user, result, makes, models, cities] = await Promise.all([
+  const [user, result, makes, models, cities, available] = await Promise.all([
     getCurrentUser(),
     searchListings(filters),
     getMakes(),
     getModels(),
     getCities(),
+    makesWithListings(),
   ]);
   const noMatches = result.items.length === 0;
   // When nothing matches, show the newest real listings so the page is still useful.
@@ -47,9 +48,12 @@ export default async function CarsPage({ params, searchParams }: PageProps<"/[la
     makes,
     models,
     cities,
+    available: available.map((a) => ({ slug: a.slug, count: a.count })),
   };
   const chipProps = { locale, dict, filters, makes, models, cities };
   const make = makes.find((m) => m.slug === filters.make);
+  // The selected make has no published cars at all: say that plainly instead of suggesting a wider price range.
+  const makeHasNoCars = !!make && !available.some((a) => a.slug === make.slug);
   const heading = make ? `${dict.search.title} — ${locale === "ar" ? make.nameAr : make.nameEn}` : dict.search.title;
   const from = (result.page - 1) * PAGE_SIZE + 1;
   const to = Math.min(result.page * PAGE_SIZE, result.total);
@@ -94,8 +98,8 @@ export default async function CarsPage({ params, searchParams }: PageProps<"/[la
             <div className="flex flex-col gap-10">
               <EmptyState
                 icon={<SearchX className="size-8" />}
-                title={dict.search.noResultsTitle}
-                body={dict.search.noResultsBody}
+                title={makeHasNoCars ? t(dict.search.noMakeTitle, { make: locale === "ar" ? make!.nameAr : make!.nameEn }) : dict.search.noResultsTitle}
+                body={makeHasNoCars ? dict.search.noMakeBody : dict.search.noResultsBody}
                 action={
                   activeFilterCount(filters) > 0 ? (
                     <div className="flex flex-col items-start gap-3 sm:items-center">

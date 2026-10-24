@@ -54,8 +54,9 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
   const showMakes = makesWithCars.length >= 2;
   const showBands = bandsWithCars.length >= 2;
   const earlyDays = total > 0 && total < EARLY_DAYS_THRESHOLD;
-  // Quick links: makes that actually have listings, most first.
-  const quickMakes = (await makesWithListings()).slice(0, 6);
+  // Makes that actually have listings, most first (quick links + "available now" in the make picker).
+  const available = await makesWithListings();
+  const quickMakes = available.slice(0, 6);
   const p = (s: string) => `/${locale}${s}`;
   const bandLabel = ([min, max]: [number, number | null]) =>
     min === 0
@@ -86,7 +87,8 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
               makes={makes}
               models={models}
               cities={cities}
-              labels={{ budget: h.budget, budgetMax: h.budgetMax, make: h.make, model: h.model, yearFrom: h.yearFrom, location: h.location, search: h.search, any: dict.common.any }}
+              available={available}
+              labels={{ budget: h.budget, budgetMax: h.budgetMax, make: h.make, model: h.model, yearFrom: h.yearFrom, location: h.location, search: h.search, any: dict.common.any, availableNow: dict.search.availableNow, allMakes: dict.search.allMakes }}
             />
             {features.assistant && (
               <Link href={p("/assistant")} className="mt-4 flex items-center gap-3 rounded-[var(--radius-md)] border border-brand-600/25 bg-brand-50 px-4 py-3 text-sm font-medium text-navy-800 hover:border-brand-600/50">

@@ -12,7 +12,7 @@ import { SORTS, toQueryString } from "@/lib/search-params";
 import { BODIES, CONDITIONS, FUELS, TRANSMISSIONS } from "@/lib/validation";
 import { Input, Select } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
-import type { CityOption, TaxonomyMake, TaxonomyModel } from "./search-panel";
+import { MakeOptions, type AvailableMake, type CityOption, type TaxonomyMake, type TaxonomyModel } from "./search-panel";
 
 type Props = {
   locale: Locale;
@@ -21,9 +21,10 @@ type Props = {
   makes: TaxonomyMake[];
   models: TaxonomyModel[];
   cities: CityOption[];
+  available: AvailableMake[];
 };
 
-function FilterForm({ locale, dict, filters, makes, models, cities, onDone }: Props & { onDone?: () => void }) {
+function FilterForm({ locale, dict, filters, makes, models, cities, available, onDone }: Props & { onDone?: () => void }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [f, setF] = useState<SearchFilters>(filters);
@@ -73,7 +74,7 @@ function FilterForm({ locale, dict, filters, makes, models, cities, onDone }: Pr
           {s.make}
           <Select value={f.make ?? ""} onChange={(e) => setF((o) => ({ ...o, make: e.target.value || undefined, model: undefined }))}>
             <option value="">{dict.common.any}</option>
-            {makes.map((m) => <option key={m.slug} value={m.slug}>{name(m)}</option>)}
+            <MakeOptions makes={makes} available={available} name={name} labels={{ availableNow: s.availableNow, allMakes: s.allMakes }} />
           </Select>
         </label>
         <label className={label}>

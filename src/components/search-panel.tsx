@@ -12,20 +12,55 @@ export type TaxonomyMake = { id: number; slug: string; nameEn: string; nameAr: s
 export type TaxonomyModel = { id: number; makeId: number; slug: string; nameEn: string; nameAr: string };
 export type CityOption = { slug: string; nameEn: string; nameAr: string };
 
-const BUDGETS = [300_000, 500_000, 750_000, 1_000_000, 1_500_000, 2_000_000, 3_000_000, 5_000_000];
+// Listings may be priced up to EGP 100M, so the budget list must reach past 5M or higher-priced cars become unreachable from here.
+const BUDGETS = [300_000, 500_000, 750_000, 1_000_000, 1_500_000, 2_000_000, 3_000_000, 5_000_000, 7_500_000, 10_000_000, 20_000_000];
+
+export type AvailableMake = { slug: string; count: number };
+
+/**
+ * Make options with the makes that currently have published cars listed first (with counts),
+ * so buyers aren't steered into searches that can only return nothing.
+ */
+export function MakeOptions({
+  makes,
+  available,
+  name,
+  labels,
+}: {
+  makes: TaxonomyMake[];
+  available: AvailableMake[];
+  name: (r: { nameAr: string; nameEn: string }) => string;
+  labels: { availableNow: string; allMakes: string };
+}) {
+  const counts = new Map(available.map((a) => [a.slug, a.count]));
+  const withCars = makes.filter((m) => counts.has(m.slug)).sort((a, b) => counts.get(b.slug)! - counts.get(a.slug)!);
+  if (withCars.length === 0) return <>{makes.map((m) => <option key={m.slug} value={m.slug}>{name(m)}</option>)}</>;
+  return (
+    <>
+      <optgroup label={labels.availableNow}>
+        {withCars.map((m) => <option key={m.slug} value={m.slug}>{`${name(m)} (${counts.get(m.slug)})`}</option>)}
+      </optgroup>
+      <optgroup label={labels.allMakes}>
+        {makes.filter((m) => !counts.has(m.slug)).map((m) => <option key={m.slug} value={m.slug}>{name(m)}</option>)}
+      </optgroup>
+    </>
+  );
+}
 
 export function SearchPanel({
   locale,
   makes,
   models,
   cities,
+  available,
   labels,
 }: {
   locale: Locale;
   makes: TaxonomyMake[];
   models: TaxonomyModel[];
   cities: CityOption[];
-  labels: { budget: string; budgetMax: string; make: string; model: string; yearFrom: string; location: string; search: string; any: string };
+  available: AvailableMake[];
+  labels: { budget: string; budgetMax: string; make: string; model: string; yearFrom: string; location: string; search: string; any: string; availableNow: string; allMakes: string };
 }) {
   const router = useRouter();
   const [make, setMake] = useState("");
@@ -57,7 +92,7 @@ export function SearchPanel({
         {labels.make}
         <Select value={make} onChange={(e) => { setMake(e.target.value); setModel(""); }}>
           <option value="">{labels.any}</option>
-          {makes.map((m) => <option key={m.slug} value={m.slug}>{name(m)}</option>)}
+          <MakeOptions makes={makes} available={available} name={name} labels={labels} />
         </Select>
       </label>
       <label className="flex flex-col gap-1.5 text-sm font-medium text-ink">

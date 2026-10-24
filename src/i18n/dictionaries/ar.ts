@@ -154,6 +154,10 @@ const ar = {
     comingNextBody: "تقييم السعر العادل، مساعد ذكي يرشحلك عربيات حسب احتياجك، مقارنة بين العربيات، وحجز فحص فني.",
   },
   search: {
+    availableNow: "متاحة دلوقتي",
+    allMakes: "كل الماركات",
+    noMakeTitle: "لسه مفيش عربيات {make} معروضة",
+    noMakeBody: "موتورنا لسه بادئة، والإعلانات بتظهر بعد المراجعة. شوف العربيات المتاحة دلوقتي تحت.",
     title: "سيارات للبيع",
     resultsCount: "{n} نتيجة",
     resultsCountOne: "نتيجة واحدة",
@@ -218,6 +222,7 @@ const ar = {
     postedAt: "نُشر",
     seller: "البائع",
     memberSince: "عضو منذ",
+    activeListingsOne: "إعلان نشط واحد",
     activeListings: "إعلانات نشطة",
     viewProfile: "صفحة البائع",
     contactSeller: "راسل البائع",

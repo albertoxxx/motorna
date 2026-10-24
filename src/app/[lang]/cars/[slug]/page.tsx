@@ -302,7 +302,7 @@ export default async function ListingPage({ params }: PageProps<"/[lang]/cars/[s
             </div>
           </div>
           <p className="mt-3 text-sm text-ink-2">
-            <span className="tabular font-semibold">{formatNumber(sellerActive, locale)}</span> {L.activeListings}
+            {sellerActive === 1 ? L.activeListingsOne : <><span className="tabular font-semibold">{formatNumber(sellerActive, locale)}</span> {L.activeListings}</>}
           </p>
                     <Link href={`/${locale}/sellers/${seller.id}`} className="mt-3 inline-block text-sm font-medium text-brand-700 hover:underline">
             {L.viewProfile}
