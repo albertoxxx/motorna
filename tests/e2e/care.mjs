@@ -90,8 +90,18 @@ try {
   const submitDisabled = await O.page.$$eval("button", (bs) => bs.find((b) => b.textContent.trim() === "Submit for review")?.disabled);
   assert(submitDisabled === true, "submit is disabled while the checklist is incomplete");
 
-  // Not public yet
+  // Entry points: header link, home-page CTA, and "My center" in the owner's account menu
   const P = await newCtx();
+  await go(P.page, "/en");
+  assert(!!(await P.page.$("header nav a[href='/en/care']")), "header has a Service centers link");
+  assert(!!(await P.page.$("main a[href='/en/care/apply']")), "home page has an apply-to-join entry for workshops");
+  await go(O.page, "/en");
+  await O.page.click("header button[aria-haspopup]");
+  await O.page.waitForSelector("a[role=menuitem][href='/en/center']");
+  ok("owner's account menu links to My center");
+  await go(O.page, dashUrl.replace(BASE, ""));
+
+  // Not public yet
   await go(P.page, "/en/care");
   assert(!(await text(P.page)).includes(nameEn), "unapproved center is not in the public directory");
 

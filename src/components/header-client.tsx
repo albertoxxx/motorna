@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Heart, LayoutList, LogOut, Menu, MessageSquare, Shield, User, X, ChevronDown, Plus } from "lucide-react";
+import { Heart, LayoutList, LogOut, Menu, MessageSquare, Shield, User, X, ChevronDown, Plus, Wrench } from "lucide-react";
 import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/dictionaries/ar";
 import { authClient } from "@/lib/auth-client";
@@ -14,7 +14,7 @@ import { cn } from "@/lib/cn";
 type Props = {
   locale: Locale;
   nav: Dictionary["nav"];
-  user: { name: string; isAdmin: boolean } | null;
+  user: { name: string; isAdmin: boolean; hasCenter: boolean } | null;
   unread: number;
 };
 
@@ -64,6 +64,7 @@ export function HeaderClient({ locale, nav, user, unread }: Props) {
     { href: p("/account/favorites"), label: nav.favorites, icon: Heart },
     { href: p("/account/messages"), label: nav.messages, icon: MessageSquare, badge: unread },
     { href: p("/account/profile"), label: nav.profile, icon: User },
+    ...(user?.hasCenter ? [{ href: p("/center"), label: nav.myCenter, icon: Wrench }] : []),
     ...(user?.isAdmin ? [{ href: p("/admin"), label: nav.admin, icon: Shield }] : []),
   ];
 
@@ -79,6 +80,9 @@ export function HeaderClient({ locale, nav, user, unread }: Props) {
         <nav className="hidden items-center gap-1 lg:flex" aria-label="Main">
           <Link href={p("/cars")} className={cn("whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium", isActive(p("/cars")) ? "text-ink" : "text-ink-2 hover:text-ink")}>
             {nav.browse}
+          </Link>
+          <Link href={p("/care")} className={cn("whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium", isActive(p("/care")) ? "text-ink" : "text-ink-2 hover:text-ink")}>
+            {nav.care}
           </Link>
           <Link href={p("/faq")} className={cn("whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium", isActive(p("/faq")) ? "text-ink" : "text-ink-2 hover:text-ink")}>
             {nav.help}
@@ -153,6 +157,7 @@ export function HeaderClient({ locale, nav, user, unread }: Props) {
               {nav.sell}
             </Link>
             <Link href={p("/cars")} className="rounded-md px-2 py-3 font-medium text-ink">{nav.browse}</Link>
+            <Link href={p("/care")} className="rounded-md px-2 py-3 font-medium text-ink">{nav.care}</Link>
             <Link href={p("/faq")} className="rounded-md px-2 py-3 font-medium text-ink">{nav.help}</Link>
             <div className="my-2 border-t border-line" />
             {user ? (

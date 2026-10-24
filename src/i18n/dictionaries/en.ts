@@ -8,6 +8,8 @@ const en: Dictionary = {
     description: "Buy or sell a car in Egypt with confidence. Reviewed listings, precise filters, and safe messaging with sellers.",
   },
   nav: {
+    care: "Service centers",
+    myCenter: "My center",
     browse: "Browse cars",
     sell: "Sell your car",
     howItWorks: "How we review listings",
@@ -102,6 +104,9 @@ const en: Dictionary = {
     role: { user: "User", dealer: "Dealer", admin: "Admin" },
   },
   home: {
+    careTitle: "Run a workshop or inspection center?",
+    careBody: "List it in the MOTORNA Care directory. Applying is free, and documents are seen by moderators only.",
+    careCta: "Apply to join",
     heroTitle: "Find your next car with confidence.",
     heroBody: "Every listing is checked by a moderator before it goes live. Filter by price, model and location, and message sellers without handing out your number.",
     heroSellLink: "Selling? List your car free",

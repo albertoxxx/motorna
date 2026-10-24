@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ShieldCheck, Flag, BanknoteX, ArrowUpRight, Plus, Sparkles } from "lucide-react";
+import { ShieldCheck, Flag, BanknoteX, ArrowUpRight, Plus, Sparkles, Wrench } from "lucide-react";
 import { features } from "@/lib/features";
 import { resolveLocale } from "@/i18n/server";
 import { t } from "@/i18n/t";
@@ -259,6 +259,19 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
           <div className="flex flex-wrap gap-3">
             <ButtonLink href={p("/sell")} variant="dark" size="lg">{h.sellerCta}</ButtonLink>
             <ButtonLink href={p("/cars")} size="lg" className="bg-white/10 text-white hover:bg-white/20">{h.buyerCta}</ButtonLink>
+          </div>
+        </div>
+        {/* Workshops and inspection centers: entry point to the MOTORNA Care application. */}
+        <div className="mt-4 flex flex-col gap-4 rounded-[var(--radius-lg)] border border-line bg-surface p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+          <div className="flex gap-4">
+            <span className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-50 text-brand-700"><Wrench className="size-5" aria-hidden /></span>
+            <div>
+              <h2 className="font-semibold">{h.careTitle}</h2>
+              <p className="mt-1 max-w-xl text-sm leading-relaxed text-ink-2">{h.careBody}</p>
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <ButtonLink href={p("/care/apply")} variant="secondary">{h.careCta}</ButtonLink>
           </div>
         </div>
         <p className="mt-8 max-w-2xl text-sm leading-relaxed text-ink-3">
