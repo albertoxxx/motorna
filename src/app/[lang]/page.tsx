@@ -13,6 +13,7 @@ import {
   getModels,
   latestListings,
   popularMakesWithCounts,
+  makesWithListings,
 } from "@/server/listings";
 import { ListingCard, ListingGrid } from "@/components/listing-card";
 import { SearchPanel } from "@/components/search-panel";
@@ -42,7 +43,7 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
   ]);
   const saved = await favoriteIds(user?.id, latest.map((l) => l.id));
   // Quick links: makes that actually have listings, most first.
-  const quickMakes = popular.filter((m) => m.count > 0).slice(0, 6);
+  const quickMakes = (await makesWithListings()).slice(0, 6);
   const p = (s: string) => `/${locale}${s}`;
   const bandLabel = ([min, max]: [number, number | null]) =>
     min === 0
@@ -83,19 +84,17 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
             )}
           </div>
 
-          {quickMakes.length > 0 && (
-            <nav aria-label={h.makesTitle} className="mt-5 flex flex-wrap items-center gap-2">
-              {quickMakes.map((m) => (
-                <Link key={m.slug} href={p(`/cars?make=${m.slug}`)} className="rounded-full border border-white/20 px-3.5 py-1.5 text-sm text-white/85 hover:border-white/50 hover:text-white">
-                  {locale === "ar" ? m.nameAr : m.nameEn}
-                </Link>
-              ))}
-              <Link href={p("/sell")} className="ms-auto inline-flex items-center gap-1.5 text-sm font-medium text-white hover:underline">
-                <Plus className="size-4" aria-hidden />
-                {h.heroSellLink}
+          <nav aria-label={h.makesTitle} className="mt-5 flex flex-wrap items-center gap-2">
+            {quickMakes.map((m) => (
+              <Link key={m.slug} href={p(`/cars?make=${m.slug}`)} className="rounded-full border border-white/20 px-3.5 py-1.5 text-sm text-white/85 hover:border-white/50 hover:text-white">
+                {locale === "ar" ? m.nameAr : m.nameEn}
               </Link>
-            </nav>
-          )}
+            ))}
+            <Link href={p("/sell")} className="ms-auto inline-flex items-center gap-1.5 text-sm font-medium text-white hover:underline">
+              <Plus className="size-4" aria-hidden />
+              {h.heroSellLink}
+            </Link>
+          </nav>
         </div>
       </section>
 

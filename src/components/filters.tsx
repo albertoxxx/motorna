@@ -219,7 +219,12 @@ export function FiltersButton({ label, activeCount }: { label: string; activeCou
     <Button variant="secondary" onClick={() => window.dispatchEvent(new Event(OPEN_EVENT))} className="lg:hidden" aria-haspopup="dialog">
       <SlidersHorizontal className="size-4" />
       {label}
-      {activeCount > 0 && <span className="tabular rounded-full bg-navy-900 px-1.5 text-xs text-white">{activeCount}</span>}
+      {activeCount > 0 && (
+        <span className="tabular rounded-full bg-navy-900 px-1.5 text-xs text-white">
+          <span className="sr-only">: </span>
+          {activeCount}
+        </span>
+      )}
     </Button>
   );
 }

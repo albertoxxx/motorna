@@ -178,9 +178,22 @@ export async function popularMakesWithCounts() {
     })
     .from(MK)
     .leftJoin(L, eq(L.makeId, MK.id))
-    .where(eq(MK.isPopular, true))
     .groupBy(MK.id)
-    .orderBy(desc(sql`4`), asc(MK.nameEn));
+    // Popular makes plus any make that currently has published cars.
+    .having(sql`${MK.isPopular} OR count(${L.id}) FILTER (WHERE ${L.status} = 'published' AND ${L.deletedAt} IS NULL) > 0`)
+    .orderBy(desc(sql`4`), asc(MK.nameEn))
+    .limit(16);
+}
+
+/** Makes that currently have published listings, most listings first. */
+export async function makesWithListings() {
+  return db
+    .select({ slug: MK.slug, nameEn: MK.nameEn, nameAr: MK.nameAr, count: sql<number>`count(${L.id})::int` })
+    .from(MK)
+    .innerJoin(L, eq(L.makeId, MK.id))
+    .where(publicListing)
+    .groupBy(MK.id)
+    .orderBy(desc(sql`count(${L.id})`), asc(MK.nameEn));
 }
 
 export async function budgetBandCounts(bands: [number, number | null][]) {
