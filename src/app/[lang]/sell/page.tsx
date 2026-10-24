@@ -11,8 +11,8 @@ export async function generateMetadata({ params }: PageProps<"/[lang]/sell">): P
 
 export default async function SellPage({ params }: PageProps<"/[lang]/sell">) {
   const { locale, dict } = await resolveLocale(params);
-  await requireUser(locale, `/${locale}/sell`);
-  const opts = await listingFormOptions();
+  const user = await requireUser(locale, `/${locale}/sell`);
+  const opts = await listingFormOptions(user.id);
   return (
     <div className="container-page py-8">
       <h1 className="text-2xl font-bold sm:text-3xl">{dict.sell.title}</h1>

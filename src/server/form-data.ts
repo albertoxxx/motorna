@@ -1,8 +1,8 @@
 import "server-only";
-import { getCities, getMakes, getModels } from "@/server/listings";
+import { getCities, getMakes, getModelsForSeller } from "@/server/listings";
 
-export async function listingFormOptions() {
-  const [makes, models, cities] = await Promise.all([getMakes(), getModels(), getCities()]);
+export async function listingFormOptions(userId: string) {
+  const [makes, models, cities] = await Promise.all([getMakes(), getModelsForSeller(userId), getCities()]);
   return {
     makes: makes.map(({ id, slug, nameEn, nameAr }) => ({ id, slug, nameEn, nameAr })),
     models: models.map(({ id, makeId, slug, nameEn, nameAr, bodyType }) => ({ id, makeId, slug, nameEn, nameAr, bodyType })),

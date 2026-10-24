@@ -47,6 +47,15 @@ export async function moderateListing(
       })
       .where(eq(L.id, l.id));
     await audit(a.admin.id, `listing.${decision}`, "listing", l.id, { from: l.status, to, reason: note }, tx);
+    if (decision === "approve") {
+      // Approving a listing also approves a seller-entered model it uses.
+      const verified = await tx
+        .update(schema.vehicleModels)
+        .set({ isVerified: true })
+        .where(and(eq(schema.vehicleModels.id, l.modelId), eq(schema.vehicleModels.isVerified, false)))
+        .returning({ id: schema.vehicleModels.id, name: schema.vehicleModels.nameEn });
+      if (verified.length) await audit(a.admin.id, "model.verify", "vehicle_model", String(verified[0].id), { name: verified[0].name }, tx);
+    }
   });
   revalidatePath("/[lang]/admin", "layout");
   revalidatePath(`/[lang]/cars/${l.slug}`, "page");

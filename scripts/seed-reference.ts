@@ -26,10 +26,10 @@ async function main() {
     for (const [slug, nameEn, nameAr, bodyType] of m.models) {
       await db
         .insert(schema.vehicleModels)
-        .values({ makeId: make.id, slug, nameEn, nameAr, bodyType })
+        .values({ makeId: make.id, slug, nameEn, nameAr, bodyType, isVerified: true })
         .onConflictDoUpdate({
           target: [schema.vehicleModels.makeId, schema.vehicleModels.slug],
-          set: { nameEn, nameAr, bodyType },
+          set: { nameEn, nameAr, bodyType, isVerified: true },
         });
       models++;
     }

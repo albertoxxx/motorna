@@ -11,24 +11,66 @@ import { fieldErrors, listingInputSchema, type ValidationKey, MIN_DESCRIPTION_FO
 import { nextStatus, requiresReReview, type ListingAction } from "@/lib/listing-state";
 import { IMAGE_MIN_COUNT } from "@/lib/images";
 import { storage } from "@/lib/storage";
-import { makeListingSlug } from "@/lib/slug";
+import { makeListingSlug, shortId } from "@/lib/slug";
 
 const { listings: L, listingImages: IMG, vehicleModels: MD, vehicleMakes: MK, cities: C } = schema;
 
 type SaveResult = { id: string; slug: string; status: schema.ListingStatus; missing: ("photos" | "description")[] };
 
-async function verifyRefs(input: ListingInput) {
-  const [model] = await db
-    .select({ id: MD.id, makeId: MD.makeId, makeSlug: MK.slug, modelSlug: MD.slug })
-    .from(MD)
-    .innerJoin(MK, eq(MK.id, MD.makeId))
-    .where(eq(MD.id, input.modelId));
-  if (!model || model.makeId !== input.makeId) {
-    return { error: { modelId: "modelMismatch" } as Record<string, ValidationKey>, model: null };
-  }
+const MAX_PENDING_MODELS_PER_USER = 5;
+
+function slugifyModel(name: string) {
+  return name
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+}
+
+/**
+ * Resolves the listing's make/model/city. A catalog model must belong to the
+ * chosen make. An unlisted model ("other") is matched case-insensitively to an
+ * existing one, or created as unverified until an admin approves the listing.
+ */
+async function verifyRefs(input: ListingInput, userId: string) {
+  const bad = (fields: Record<string, ValidationKey>) => ({ error: fields, model: null });
   const [city] = await db.select({ id: C.id }).from(C).where(eq(C.id, input.cityId));
-  if (!city) return { error: { cityId: "required" } as Record<string, ValidationKey>, model: null };
-  return { error: null, model };
+  if (!city) return bad({ cityId: "required" });
+
+  if (input.modelId) {
+    const [model] = await db
+      .select({ id: MD.id, makeId: MD.makeId, makeSlug: MK.slug, modelSlug: MD.slug })
+      .from(MD)
+      .innerJoin(MK, eq(MK.id, MD.makeId))
+      .where(eq(MD.id, input.modelId));
+    if (!model || model.makeId !== input.makeId) return bad({ modelId: "modelMismatch" });
+    return { error: null, model };
+  }
+
+  const name = input.modelOther!;
+  const [make] = await db.select({ id: MK.id, slug: MK.slug }).from(MK).where(eq(MK.id, input.makeId));
+  if (!make) return bad({ makeId: "required" });
+  const [existing] = await db
+    .select({ id: MD.id, slug: MD.slug })
+    .from(MD)
+    .where(and(eq(MD.makeId, make.id), sql`(lower(${MD.nameEn}) = lower(${name}) OR lower(${MD.nameAr}) = lower(${name}))`));
+  if (existing) return { error: null, model: { id: existing.id, makeId: make.id, makeSlug: make.slug, modelSlug: existing.slug } };
+
+  const [{ pending }] = await db
+    .select({ pending: sql<number>`count(*)::int` })
+    .from(MD)
+    .where(and(eq(MD.createdById, userId), eq(MD.isVerified, false)));
+  if (pending >= MAX_PENDING_MODELS_PER_USER) return bad({ modelOther: "modelOther" });
+
+  const base = slugifyModel(name) || "model";
+  const [taken] = await db.select({ id: MD.id }).from(MD).where(and(eq(MD.makeId, make.id), eq(MD.slug, base)));
+  const slug = taken ? `${base}-${shortId(4)}` : base;
+  const [created] = await db
+    .insert(MD)
+    .values({ makeId: make.id, slug, nameEn: name, nameAr: name, bodyType: input.bodyType ?? null, isVerified: false, createdById: userId })
+    .returning({ id: MD.id, slug: MD.slug });
+  return { error: null, model: { id: created.id, makeId: make.id, makeSlug: make.slug, modelSlug: created.slug } };
 }
 
 async function submissionGaps(listingId: string, description: string) {
@@ -58,12 +100,12 @@ export async function saveListing(
   if (!parsed.success) return fail("validation", fieldErrors(parsed.error));
   const input = parsed.data;
 
-  const refs = await verifyRefs(input);
+  const refs = await verifyRefs(input, user.id);
   if (refs.error || !refs.model) return fail("validation", refs.error ?? undefined);
 
   const values = {
     makeId: input.makeId,
-    modelId: input.modelId,
+    modelId: refs.model.id,
     trim: input.trim ?? null,
     year: input.year,
     mileageKm: input.mileageKm,

@@ -278,6 +278,51 @@ describe("messaging, favorites, reports", () => {
   });
 });
 
+describe("unlisted models", () => {
+  it("seller can enter a model that isn't in the catalog; it stays hidden until approval", async () => {
+    current = users.seller;
+    const r = await listings.saveListing(null, { ...input(), modelId: "other", modelOther: "Corolla GR Sport" }, "draft");
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const [l] = await db.select().from(schema.listings).where(eq(schema.listings.id, r.data.id));
+    const [model] = await db.select().from(schema.vehicleModels).where(eq(schema.vehicleModels.id, l.modelId));
+    expect(model.nameEn).toBe("Corolla GR Sport");
+    expect(model.isVerified).toBe(false);
+    expect(model.makeId).toBe(corolla.makeId);
+    const { getModels } = await import("@/server/listings");
+    expect((await getModels(corolla.makeId)).some((m) => m.id === model.id)).toBe(false);
+
+    await addImages(r.data.id, 3);
+    await listings.changeListingStatus(r.data.id, "submit");
+    current = users.admin;
+    await admin.moderateListing(r.data.id, "approve");
+    const [after] = await db.select().from(schema.vehicleModels).where(eq(schema.vehicleModels.id, model.id));
+    expect(after.isVerified).toBe(true);
+  });
+
+  it("matches an existing model by name instead of creating a duplicate", async () => {
+    current = users.buyer;
+    const r = await listings.saveListing(null, { ...input(), modelId: "other", modelOther: "corolla" }, "draft");
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const [l] = await db.select().from(schema.listings).where(eq(schema.listings.id, r.data.id));
+    expect(l.modelId).toBe(corolla.modelId);
+  });
+
+  it("requires a name when 'other' is chosen, and caps pending models per seller", async () => {
+    current = users.buyer;
+    const empty = await listings.saveListing(null, { ...input(), modelId: "other", modelOther: "  " }, "draft");
+    expect(empty.ok).toBe(false);
+    for (let i = 0; i < 5; i++) {
+      await listings.saveListing(null, { ...input(), modelId: "other", modelOther: `Test Model ${i}` }, "draft");
+      await db.delete(schema.rateLimitBuckets);
+    }
+    const sixth = await listings.saveListing(null, { ...input(), modelId: "other", modelOther: "Test Model 6" }, "draft");
+    expect(sixth.ok).toBe(false);
+    if (!sixth.ok) expect(sixth.fields?.modelOther).toBe("modelOther");
+  });
+});
+
 describe("rate limiting", () => {
   it("blocks after the limit within a window", async () => {
     const subject = crypto.randomUUID();

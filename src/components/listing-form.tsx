@@ -19,6 +19,7 @@ import type { CityOption, TaxonomyMake, TaxonomyModel } from "./search-panel";
 type Values = {
   makeId: string;
   modelId: string;
+  modelOther: string;
   trim: string;
   year: string;
   mileageKm: string;
@@ -41,7 +42,7 @@ type Img = { id: string; thumbUrl: string };
 type CityWithId = CityOption & { id: number };
 
 const STEP_FIELDS: (keyof Values)[][] = [
-  ["makeId", "modelId", "year", "trim", "condition", "bodyType"],
+  ["makeId", "modelId", "modelOther", "year", "trim", "condition", "bodyType"],
   ["mileageKm", "transmission", "fuelType", "engineCc", "color", "priceEgp", "cityId", "area", "title", "description"],
 ];
 
@@ -76,7 +77,7 @@ export function ListingForm({
   const [titleTouched, setTitleTouched] = useState(!!initial.title);
   const fileRef = useRef<HTMLInputElement>(null);
   const [v, setV] = useState<Values>({
-    makeId: "", modelId: "", trim: "", year: "", mileageKm: "", priceEgp: "", negotiable: true,
+    makeId: "", modelId: "", modelOther: "", trim: "", year: "", mileageKm: "", priceEgp: "", negotiable: true,
     condition: "used", transmission: "automatic", fuelType: "petrol", bodyType: "", color: "",
     engineCc: "", cityId: String(cities.find((c) => c.slug === "alexandria")?.id ?? ""), area: "", title: "", description: "",
     ...initial,
@@ -88,17 +89,18 @@ export function ListingForm({
   function autoTitle(next: Values) {
     const mk = makes.find((m) => String(m.id) === next.makeId);
     const md = models.find((m) => String(m.id) === next.modelId);
-    return [mk?.nameEn, md?.nameEn, next.year, next.trim].filter(Boolean).join(" ");
+    const modelName = next.modelId === "other" ? next.modelOther.trim() : md?.nameEn;
+    return [mk?.nameEn, modelName, next.year, next.trim].filter(Boolean).join(" ");
   }
   function set<K extends keyof Values>(k: K, val: Values[K]) {
     setV((o) => {
       const next = { ...o, [k]: val };
-      if (k === "makeId") next.modelId = "";
+      if (k === "makeId") { next.modelId = ""; next.modelOther = ""; }
       if (k === "modelId") {
         const md = models.find((m) => String(m.id) === val);
         if (md?.bodyType && !o.bodyType) next.bodyType = md.bodyType;
       }
-      if (!titleTouched && ["makeId", "modelId", "year", "trim"].includes(k)) next.title = autoTitle(next);
+      if (!titleTouched && ["makeId", "modelId", "modelOther", "year", "trim"].includes(k)) next.title = autoTitle(next);
       return next;
     });
     if (errors[k]) setErrors((e) => { const n = { ...e }; delete n[k]; return n; });
@@ -108,7 +110,10 @@ export function ListingForm({
   function localCheck(fields: (keyof Values)[]) {
     const e: Record<string, ValidationKey> = {};
     const req = (k: keyof Values) => !String(v[k]).trim() && (e[k] = "required");
-    if (fields.includes("makeId")) { req("makeId"); req("modelId"); req("year"); }
+    if (fields.includes("makeId")) {
+      req("makeId"); req("modelId"); req("year");
+      if (v.modelId === "other" && !v.modelOther.trim()) e.modelOther = "modelOther";
+    }
     if (fields.includes("mileageKm")) {
       req("mileageKm"); req("priceEgp"); req("cityId");
       if (v.title.trim().length < 10 || v.title.trim().length > 100) e.title = "titleLength";
@@ -245,8 +250,14 @@ export function ListingForm({
               <Select id="modelId" value={v.modelId} invalid={!!errors.modelId} disabled={!v.makeId} onChange={(e) => set("modelId", e.target.value)}>
                 <option value="">{v.makeId ? S.selectModel : S.selectMakeFirst}</option>
                 {makeModels.map((m) => <option key={m.id} value={m.id}>{name(m)}</option>)}
+                {v.makeId && <option value="other">{S.modelNotListed}</option>}
               </Select>
             </Field>
+            {v.modelId === "other" && (
+              <Field className="sm:col-span-2" label={S.modelOtherLabel} htmlFor="modelOther" hint={S.modelOtherHint} error={err("modelOther")}>
+                <Input id="modelOther" value={v.modelOther} maxLength={40} invalid={!!errors.modelOther} autoFocus onChange={(e) => set("modelOther", e.target.value)} />
+              </Field>
+            )}
             <Field label={S.year} htmlFor="year" error={err("year")}>
               <Select id="year" value={v.year} invalid={!!errors.year} onChange={(e) => set("year", e.target.value)}>
                 <option value="">—</option>
@@ -359,7 +370,7 @@ export function ListingForm({
                 <h2 className="text-xl font-bold">{v.title}</h2>
                 <p className="tabular mt-1 text-lg font-semibold text-navy-900">{v.priceEgp && formatPrice(Number(v.priceEgp.replace(/\D/g, "")), locale)}</p>
                 <p className="mt-1 text-sm text-ink-2">
-                  {[mk && name(mk), md && name(md), v.year, v.mileageKm && formatKm(Number(v.mileageKm.replace(/\D/g, "")), locale), city && name(city)].filter(Boolean).join("، ")}
+                  {[mk && name(mk), v.modelId === "other" ? v.modelOther : md && name(md), v.year, v.mileageKm && formatKm(Number(v.mileageKm.replace(/\D/g, "")), locale), city && name(city)].filter(Boolean).join("، ")}
                 </p>
               </div>
             </div>

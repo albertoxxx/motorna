@@ -5,6 +5,7 @@ import { requireAdmin } from "@/server/session";
 import { moderationQueue } from "@/server/queries";
 import { ModerationActions } from "@/components/admin-actions";
 import { EmptyState } from "@/components/ui/states";
+import { Badge } from "@/components/ui/badge";
 import { formatDate, formatKm, formatPrice, formatRelative } from "@/lib/format";
 
 export default async function ModerationPage({ params }: PageProps<"/[lang]/admin/listings">) {
@@ -28,6 +29,12 @@ export default async function ModerationPage({ params }: PageProps<"/[lang]/admi
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <Link href={`/${locale}/cars/${l.slug}`} className="text-lg font-semibold hover:underline">{l.title}</Link>
+                  {!l.modelVerified && (
+                    <p className="mt-1">
+                      <Badge tone="warning">{A.newModel}: {l.makeNameEn} {l.modelNameEn}</Badge>
+                      <span className="ms-2 text-xs text-ink-3">{A.newModelHint}</span>
+                    </p>
+                  )}
                   <p className="tabular mt-1 text-sm text-ink-2">
                     {formatPrice(l.priceEgp, locale)} — {formatKm(l.mileageKm, locale)} — {locale === "ar" ? l.cityNameAr : l.cityNameEn}
                   </p>

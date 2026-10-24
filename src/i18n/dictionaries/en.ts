@@ -236,6 +236,9 @@ const en: Dictionary = {
     selectMake: "Select make",
     model: "Model",
     selectModel: "Select model",
+    modelNotListed: "My model isn't listed",
+    modelOtherLabel: "Model name",
+    modelOtherHint: "Type it as it appears on the car, e.g. X6 or Tiggo 9. It's reviewed with your listing.",
     selectMakeFirst: "Select a make first",
     trim: "Trim",
     trimHint: "e.g. Highline, original paint",
@@ -385,6 +388,8 @@ const en: Dictionary = {
     rejectReasonRequired: "Enter a rejection reason",
     submittedBy: "By",
     submittedAt: "Submitted",
+    newModel: "New model",
+    newModelHint: "Check the spelling — approving adds it to the catalog.",
     checklist: "Before approving, check:",
     checklistItems: [
       "Photos are real, of this car, and not taken from the web",
@@ -453,6 +458,7 @@ const en: Dictionary = {
     email: "Invalid email",
     nameLength: "Name must be 2–60 characters",
     messageLength: "Message must be 1–2,000 characters",
+    modelOther: "Enter the model name (up to 40 characters)",
     newUsedMileage: "A new car must have under 1,000 km",
   },
 };

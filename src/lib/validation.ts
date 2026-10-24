@@ -14,7 +14,8 @@ export type ValidationKey =
   | "email"
   | "nameLength"
   | "messageLength"
-  | "newUsedMileage";
+  | "newUsedMileage"
+  | "modelOther";
 
 export const CONDITIONS = ["new", "used"] as const;
 export const TRANSMISSIONS = ["automatic", "manual"] as const;
@@ -52,7 +53,15 @@ const optionalText = (max: number) =>
 export const listingInputSchema = z
   .object({
     makeId: toInt("required").pipe(z.number().positive({ error: "required" })),
-    modelId: toInt("required").pipe(z.number().positive({ error: "required" })),
+    // A catalog model, or "other" with a seller-typed name in modelOther.
+    modelId: z.preprocess(
+      (v) => (v === "other" || v === "" || v == null ? undefined : v),
+      toInt("required").pipe(z.number().positive({ error: "required" })).optional(),
+    ),
+    modelOther: z.preprocess(
+      (v) => (typeof v === "string" ? v.trim().replace(/\s+/g, " ") || undefined : undefined),
+      z.string().min(1, { error: "modelOther" }).max(40, { error: "modelOther" }).optional(),
+    ),
     trim: optionalText(60),
     year: toInt("year").pipe(z.number().min(MIN_YEAR, { error: "year" }).max(maxYear(), { error: "year" })),
     mileageKm: toInt("mileage").pipe(z.number().min(0, { error: "mileage" }).max(2_000_000, { error: "mileage" })),
@@ -79,6 +88,9 @@ export const listingInputSchema = z
     ),
   })
   .superRefine((v, ctx) => {
+    if (!v.modelId && !v.modelOther) {
+      ctx.addIssue({ code: "custom", path: [v.modelOther === undefined && v.modelId === undefined ? "modelId" : "modelOther"], message: "required" });
+    }
     if (v.condition === "new" && v.mileageKm >= 1000) {
       ctx.addIssue({ code: "custom", path: ["mileageKm"], message: "newUsedMileage" });
     }

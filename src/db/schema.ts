@@ -93,6 +93,9 @@ export const vehicleModels = pgTable(
     nameEn: text().notNull(),
     nameAr: text().notNull(),
     bodyType: bodyType(),
+    /** false = entered by a seller ("model not listed"); verified when an admin approves the listing. */
+    isVerified: boolean().notNull().default(true),
+    createdById: text(),
   },
   (t) => [uniqueIndex("vehicle_models_make_slug_uq").on(t.makeId, t.slug)],
 );

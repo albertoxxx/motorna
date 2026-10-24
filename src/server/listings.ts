@@ -295,9 +295,19 @@ export async function getMakes() {
   return db.select().from(MK).orderBy(desc(MK.isPopular), asc(MK.nameEn));
 }
 
+/** Public catalog: verified models only. */
 export async function getModels(makeId?: number) {
-  const q = db.select().from(MD);
-  return makeId ? q.where(eq(MD.makeId, makeId)).orderBy(asc(MD.nameEn)) : q.orderBy(asc(MD.nameEn));
+  const where = makeId ? and(eq(MD.isVerified, true), eq(MD.makeId, makeId)) : eq(MD.isVerified, true);
+  return db.select().from(MD).where(where).orderBy(asc(MD.nameEn));
+}
+
+/** Catalog for the listing form: verified models plus this seller's own unverified ones. */
+export async function getModelsForSeller(userId: string) {
+  return db
+    .select()
+    .from(MD)
+    .where(or(eq(MD.isVerified, true), eq(MD.createdById, userId)))
+    .orderBy(asc(MD.nameEn));
 }
 
 export async function getCities() {

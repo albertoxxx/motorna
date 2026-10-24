@@ -23,7 +23,7 @@ export default async function EditListingPage({ params }: PageProps<"/[lang]/acc
   if (!data) notFound();
   const l = data.listing;
   if (l.status === "sold") notFound();
-  const opts = await listingFormOptions();
+  const opts = await listingFormOptions(user.id);
   const str = (n: number | null) => (n == null ? "" : String(n));
   return (
     <div className="container-page py-8">

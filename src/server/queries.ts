@@ -116,6 +116,8 @@ export async function moderationQueue() {
       submittedAt: L.submittedAt,
       makeNameEn: MK.nameEn,
       modelNameEn: MD.nameEn,
+      modelVerified: MD.isVerified,
+      makeNameEnQ: MK.nameEn,
       cityNameEn: C.nameEn,
       cityNameAr: C.nameAr,
       sellerId: U.id,

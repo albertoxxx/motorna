@@ -234,6 +234,9 @@ const ar = {
     selectMake: "اختار الماركة",
     model: "الموديل",
     selectModel: "اختار الموديل",
+    modelNotListed: "موديلي مش موجود في القائمة",
+    modelOtherLabel: "اسم الموديل",
+    modelOtherHint: "اكتب الاسم زي ما هو مكتوب على العربية، مثال: X6 أو Tiggo 9. هيتراجع مع الإعلان.",
     selectMakeFirst: "اختار الماركة الأول",
     trim: "الفئة",
     trimHint: "مثال: هاي لاين، فابريكة بالكامل",
@@ -383,6 +386,8 @@ const ar = {
     rejectReasonRequired: "اكتب سبب الرفض",
     submittedBy: "من",
     submittedAt: "اتبعت",
+    newModel: "موديل جديد",
+    newModelHint: "اتأكد إن الاسم مكتوب صح — القبول هيضيفه للقائمة.",
     checklist: "قبل القبول اتأكد من:",
     checklistItems: [
       "الصور حقيقية وللعربية نفسها ومش مأخوذة من النت",
@@ -451,6 +456,7 @@ const ar = {
     email: "بريد إلكتروني غير صحيح",
     nameLength: "الاسم من حرفين لـ ٦٠ حرف",
     messageLength: "الرسالة من حرف لـ ٢٠٠٠ حرف",
+    modelOther: "اكتب اسم الموديل (حتى ٤٠ حرف)",
     newUsedMileage: "العربية الجديدة لازم عدادها أقل من ١٠٠٠ كم",
   },
 };
