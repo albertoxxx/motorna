@@ -70,7 +70,7 @@ class S3Driver implements StorageDriver {
         Key: key,
         Body: data,
         ContentType: contentType,
-        CacheControl: "public, max-age=31536000, immutable",
+        CacheControl: this.publicBase ? "public, max-age=31536000, immutable" : "private, no-store",
       }),
     );
   }
@@ -119,4 +119,39 @@ export function storage(): StorageDriver {
     throw new Error(`Unknown STORAGE_DRIVER "${kind}". Use "local" or "s3".`);
   }
   return driver;
+}
+
+let privateDriver: StorageDriver | null = null;
+
+/**
+ * Storage for documents that must never be publicly reachable (center credentials).
+ * Local: a directory outside the public media root. S3: a separate *private* bucket
+ * (S3_PRIVATE_BUCKET) using the same credentials. Files are read back only through
+ * auth-checked route handlers; publicUrl() is intentionally unusable.
+ */
+export function privateStorage(): StorageDriver {
+  if (privateDriver) return privateDriver;
+  const kind = process.env.STORAGE_DRIVER ?? "local";
+  const noPublic = (d: StorageDriver): StorageDriver => ({
+    put: d.put.bind(d),
+    get: d.get.bind(d),
+    delete: d.delete.bind(d),
+    publicUrl: () => {
+      throw new Error("Private files have no public URL");
+    },
+  });
+  if (kind === "local") {
+    storage(); // same production guard as public storage
+    privateDriver = noPublic(new LocalDriver(path.resolve(/*turbopackIgnore: true*/ process.env.STORAGE_PRIVATE_DIR ?? "./storage/private")));
+  } else {
+    privateDriver = noPublic(
+      new S3Driver(required("S3_PRIVATE_BUCKET"), "", {
+        endpoint: process.env.S3_ENDPOINT || undefined,
+        region: process.env.S3_REGION || "auto",
+        accessKeyId: required("S3_ACCESS_KEY_ID"),
+        secretAccessKey: required("S3_SECRET_ACCESS_KEY"),
+      }),
+    );
+  }
+  return privateDriver;
 }

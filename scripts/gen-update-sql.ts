@@ -49,7 +49,7 @@ END $$;
 
 COMMIT;
 
-${migrationsOnly ? "SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_name = 'listings' AND column_name = 'known_defects';" : "SELECT (SELECT count(*) FROM vehicle_makes) AS makes, (SELECT count(*) FROM vehicle_models) AS models;"}
+${migrationsOnly ? "SELECT (SELECT count(*) FROM drizzle.__drizzle_migrations) AS migrations_applied, (SELECT string_agg(table_name, ', ' ORDER BY table_name) FROM information_schema.tables WHERE table_schema = 'public' AND (table_name LIKE 'center%' OR table_name = 'service_centers')) AS care_tables, (SELECT count(*) FROM pg_trigger WHERE tgname LIKE 'audit_logs_no_%') AS audit_guards, (SELECT count(*) FROM listings) AS listings_kept;" : "SELECT (SELECT count(*) FROM vehicle_makes) AS makes, (SELECT count(*) FROM vehicle_models) AS models;"}
 `;
 writeFileSync(outFile, out);
 console.log(`${outFile} written`);

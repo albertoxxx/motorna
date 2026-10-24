@@ -1,4 +1,5 @@
 import type { Dictionary } from "./ar";
+import careEn from "./care-en";
 
 const en: Dictionary = {
   meta: {
@@ -472,6 +473,7 @@ const en: Dictionary = {
     draftNotice: "Initial draft — requires review by Egyptian legal counsel before launch.",
   },
   footer: {
+    care: "Inspection & service centers",
     help: "Help",
     company: "Company",
     legal: "Legal",
@@ -479,6 +481,14 @@ const en: Dictionary = {
     disclaimer: "MOTORNA is a listings platform. We don't own the cars listed and don't handle payments between buyers and sellers.",
   },
   errors: {
+    documentsUnavailable: "Document upload isn't available right now. Try again later.",
+    centerPending: "You already have a center application under review.",
+    identityLocked: "Name, governorate and address are locked after approval.",
+    userNotFound: "No MOTORNA account uses that email.",
+    conflictOfInterest: "You can't review a center you're a member of.",
+    approvalBlocked: "Some criteria or documents are still missing before approval.",
+    documentType: "Use a PDF, or a JPG, PNG or WebP image.",
+    documentSize: "The file is larger than 5 MB.",
     unauthorized: "Sign in first.",
     forbidden: "You're not allowed to do that.",
     notFound: "Not found.",
@@ -495,6 +505,14 @@ const en: Dictionary = {
     invalidTransition: "That action isn't available for this listing's current status.",
   },
   validation: {
+    centerName: "Name must be 2–80 characters",
+    address: "Enter the full address (at least 5 characters)",
+    website: "Enter a link starting with http or https",
+    acceptTerms: "You need to agree before submitting",
+    serviceName: "Service name must be 2–80 characters",
+    servicePrice: "Enter a price between EGP 1 and 1,000,000",
+    serviceDuration: "Duration must be between 10 minutes and 24 hours",
+    hours: "Invalid hours: opening time must be before closing time",
     trimIsEngine: "That looks like an engine size. Enter it in the Engine size field under Specifications.",
     required: "This field is required",
     year: "Invalid year",
@@ -512,6 +530,7 @@ const en: Dictionary = {
     knownDefectsLength: "Known defects can be up to 2,000 characters",
     newUsedMileage: "A new car must have under 1,000 km",
   },
+  care: careEn,
 };
 
 export default en;

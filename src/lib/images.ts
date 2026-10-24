@@ -43,3 +43,26 @@ export async function processListingImage(input: Buffer): Promise<ProcessedImage
     .toBuffer();
   return { full: full.data, thumb, width: full.info.width, height: full.info.height };
 }
+
+export const DOCUMENT_MAX_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Credential documents: a PDF (checked by its signature, stored as-is) or a photo/scan
+ * (decoded, metadata stripped, re-encoded to WebP). Anything else is rejected.
+ */
+export async function processDocument(input: Buffer): Promise<{ data: Buffer; contentType: string; ext: string } | { error: ImageError }> {
+  if (input.byteLength > DOCUMENT_MAX_BYTES) return { error: "imageSize" };
+  if (input.subarray(0, 5).toString("latin1") === "%PDF-") return { data: input, contentType: "application/pdf", ext: "pdf" };
+  try {
+    const meta = await sharp(input, { limitInputPixels: 50_000_000 }).metadata();
+    if (!meta.format || !ALLOWED_FORMATS.has(meta.format)) return { error: "imageType" };
+    const data = await sharp(input, { limitInputPixels: 50_000_000 })
+      .rotate()
+      .resize({ width: 2400, height: 2400, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 82 })
+      .toBuffer();
+    return { data, contentType: "image/webp", ext: "webp" };
+  } catch {
+    return { error: "imageType" };
+  }
+}

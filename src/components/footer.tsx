@@ -7,7 +7,7 @@ export function Footer({ locale, dict }: { locale: Locale; dict: Dictionary }) {
   const p = (s: string) => `/${locale}${s}`;
   const cols = [
     { title: dict.footer.help, links: [[dict.pages.faq, "/faq"], [dict.pages.verification, "/verification"], [dict.pages.contact, "/contact"]] },
-    { title: dict.footer.company, links: [[dict.pages.about, "/about"], [dict.nav.browse, "/cars"], [dict.nav.sell, "/sell"]] },
+    { title: dict.footer.company, links: [[dict.pages.about, "/about"], [dict.nav.browse, "/cars"], [dict.nav.sell, "/sell"], [dict.footer.care, "/care"]] },
     { title: dict.footer.legal, links: [[dict.pages.terms, "/terms"], [dict.pages.privacy, "/privacy"]] },
   ];
   return (

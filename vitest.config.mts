@@ -16,6 +16,7 @@ export default defineConfig({
       BETTER_AUTH_SECRET: "test-secret-test-secret-test-secret-123",
       STORAGE_DRIVER: "local",
       STORAGE_LOCAL_DIR: "./storage/test-uploads",
+      STORAGE_PRIVATE_DIR: "./storage/test-private",
     },
     fileParallelism: false,
   },

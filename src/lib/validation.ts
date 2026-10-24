@@ -17,7 +17,15 @@ export type ValidationKey =
   | "newUsedMileage"
   | "modelOther"
   | "knownDefectsLength"
-  | "trimIsEngine";
+  | "trimIsEngine"
+  | "centerName"
+  | "address"
+  | "website"
+  | "acceptTerms"
+  | "serviceName"
+  | "servicePrice"
+  | "serviceDuration"
+  | "hours";
 
 export const CONDITIONS = ["new", "used"] as const;
 export const TRANSMISSIONS = ["automatic", "manual"] as const;

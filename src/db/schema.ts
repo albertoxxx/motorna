@@ -437,3 +437,169 @@ export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
 export type Listing = typeof listings.$inferSelect;
 export type ListingStatus = (typeof listingStatus.enumValues)[number];
 export type UserRole = (typeof userRole.enumValues)[number];
+
+/* ------------------------------------------------------------------ */
+/* MOTORNA Care — Stage 1: service centers and approval               */
+/* See docs/CARE.md. Status changes are admin-only and always audited. */
+/* ------------------------------------------------------------------ */
+
+export const centerStatus = pgEnum("center_status", ["applied", "under_review", "approved", "suspended", "revoked", "rejected"]);
+export const centerStaffRole = pgEnum("center_staff_role", ["owner", "manager", "technician"]);
+export const careCategory = pgEnum("care_category", [
+  "pre_purchase_inspection",
+  "oil_change",
+  "routine_maintenance",
+  "diagnostics",
+  "brakes",
+  "tires",
+  "air_conditioning",
+  "electrical",
+  "bodywork",
+  "other",
+]);
+export const priceMode = pgEnum("price_mode", ["fixed", "quote"]);
+export const credentialKind = pgEnum("credential_kind", ["commercial_register", "tax_card", "brand_authorization", "other"]);
+export const reviewState = pgEnum("review_state", ["pending", "accepted", "rejected"]);
+
+export const serviceCenters = pgTable(
+  "service_centers",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    slug: text().notNull().unique(),
+    nameAr: text().notNull(),
+    nameEn: text().notNull(),
+    cityId: smallint()
+      .notNull()
+      .references(() => cities.id),
+    area: text(),
+    address: text().notNull(),
+    phone: text().notNull(),
+    email: text(),
+    website: text(),
+    description: text().notNull().default(""),
+    vehicleTypes: text().array().notNull().default(sql`'{}'::text[]`),
+    quotationPolicy: text().notNull().default(""),
+    status: centerStatus().notNull().default("applied"),
+    statusReason: text(),
+    approvedAt: timestamp({ withTimezone: true }),
+    approvedById: text().references(() => users.id, { onDelete: "set null" }),
+    createdById: text()
+      .notNull()
+      .references(() => users.id),
+    ...timestamps,
+  },
+  (t) => [
+    index("service_centers_status_idx").on(t.status),
+    index("service_centers_city_idx").on(t.cityId),
+    check("service_centers_description_length", sql`char_length(${t.description}) <= 3000`),
+  ],
+);
+
+export const centerStaff = pgTable(
+  "center_staff",
+  {
+    centerId: uuid()
+      .notNull()
+      .references(() => serviceCenters.id, { onDelete: "cascade" }),
+    userId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: centerStaffRole().notNull(),
+    active: boolean().notNull().default(true),
+    addedById: text().references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.centerId, t.userId] }), index("center_staff_user_idx").on(t.userId)],
+);
+
+/** Files live in private storage and are only served through an auth-checked route. */
+export const centerCredentials = pgTable(
+  "center_credentials",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    centerId: uuid()
+      .notNull()
+      .references(() => serviceCenters.id, { onDelete: "cascade" }),
+    kind: credentialKind().notNull(),
+    number: text(),
+    fileKey: text().notNull(),
+    contentType: text().notNull(),
+    expiresAt: timestamp({ withTimezone: true }),
+    reviewState: reviewState().notNull().default("pending"),
+    reviewedById: text().references(() => users.id, { onDelete: "set null" }),
+    reviewedAt: timestamp({ withTimezone: true }),
+    reviewNote: text(),
+    uploadedById: text()
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("center_credentials_center_idx").on(t.centerId)],
+);
+
+/** The admin's approval checklist: one row per criterion, last write wins (history is in audit_logs). */
+export const centerApprovalChecks = pgTable(
+  "center_approval_checks",
+  {
+    centerId: uuid()
+      .notNull()
+      .references(() => serviceCenters.id, { onDelete: "cascade" }),
+    criterion: text().notNull(),
+    passed: boolean().notNull(),
+    note: text(),
+    checkedById: text()
+      .notNull()
+      .references(() => users.id),
+    checkedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.centerId, t.criterion] })],
+);
+
+export const centerServices = pgTable(
+  "center_services",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    centerId: uuid()
+      .notNull()
+      .references(() => serviceCenters.id, { onDelete: "cascade" }),
+    category: careCategory().notNull(),
+    nameAr: text().notNull(),
+    nameEn: text().notNull(),
+    priceMode: priceMode().notNull(),
+    priceEgp: integer(),
+    durationMin: smallint().notNull().default(60),
+    active: boolean().notNull().default(true),
+    ...timestamps,
+  },
+  (t) => [
+    index("center_services_center_idx").on(t.centerId),
+    check(
+      "center_services_price",
+      sql`(${t.priceMode} = 'quote' AND ${t.priceEgp} IS NULL) OR (${t.priceMode} = 'fixed' AND ${t.priceEgp} BETWEEN 1 AND 1000000)`,
+    ),
+    check("center_services_duration", sql`${t.durationMin} BETWEEN 10 AND 1440`),
+  ],
+);
+
+export const centerHours = pgTable(
+  "center_hours",
+  {
+    centerId: uuid()
+      .notNull()
+      .references(() => serviceCenters.id, { onDelete: "cascade" }),
+    weekday: smallint().notNull(), // 0 = Sunday … 6 = Saturday
+    opens: text().notNull(), // "09:00"
+    closes: text().notNull(), // "18:00"
+  },
+  (t) => [
+    primaryKey({ columns: [t.centerId, t.weekday] }),
+    check("center_hours_weekday", sql`${t.weekday} BETWEEN 0 AND 6`),
+    check("center_hours_format", sql`${t.opens} ~ '^[0-2][0-9]:[0-5][0-9]$' AND ${t.closes} ~ '^[0-2][0-9]:[0-5][0-9]$' AND ${t.opens} < ${t.closes}`),
+  ],
+);
+
+export type ServiceCenter = typeof serviceCenters.$inferSelect;
+export type CenterStatus = (typeof centerStatus.enumValues)[number];
+export type CenterStaffRole = (typeof centerStaffRole.enumValues)[number];
+export type CareCategory = (typeof careCategory.enumValues)[number];
+export type CredentialKind = (typeof credentialKind.enumValues)[number];

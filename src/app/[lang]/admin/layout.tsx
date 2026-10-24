@@ -17,6 +17,7 @@ export default async function AdminLayout({ children, params }: LayoutProps<"/[l
           links={[
             { href: "/admin/listings", label: A.moderation },
             { href: "/admin/reports", label: A.reports },
+            { href: "/admin/centers", label: dict.care.admin.centers },
             { href: "/admin/audit", label: A.audit },
           ]}
         />

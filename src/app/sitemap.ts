@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = siteUrl();
-  const staticPaths = ["", "/cars", "/about", "/verification", "/faq", "/contact", "/terms", "/privacy"];
+  const staticPaths = ["", "/cars", "/about", "/verification", "/faq", "/contact", "/terms", "/privacy", "/care"];
   const listings = await db
     .select({ slug: schema.listings.slug, updatedAt: schema.listings.updatedAt })
     .from(schema.listings)

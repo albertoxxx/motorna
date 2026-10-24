@@ -12,6 +12,9 @@ export const RULES = {
   report: { limit: 10, windowSec: 60 * 60 },
   phoneReveal: { limit: 30, windowSec: 60 * 60 },
   favorite: { limit: 120, windowSec: 60 * 10 },
+  centerApply: { limit: 3, windowSec: 60 * 60 * 24 },
+  centerEdit: { limit: 200, windowSec: 60 * 60 },
+  credentialUpload: { limit: 30, windowSec: 60 * 60 },
 } satisfies Record<string, RateRule>;
 
 /**
