@@ -87,17 +87,29 @@ try {
   await S.page.waitForFunction(() => document.querySelector("#modelId").options.length > 1);
   await selectByText(S.page, "#modelId", "Corolla");
   await selectByText(S.page, "#year", "2019");
+  // An engine size typed as the trim is caught before moving on
+  await S.page.type("#trim", "3000cc");
+  await clickText(S.page, "Continue");
+  await S.page.waitForFunction(() => document.body.innerText.includes("looks like an engine size"));
+  assert(!!(await S.page.$("#makeId")), "engine size in the trim field blocks the step with a clear message");
+  await S.page.$eval("#trim", (e) => { e.select(); });
+  await S.page.keyboard.press("Backspace");
   await S.page.type("#trim", trim);
   await clickText(S.page, "Continue");
   // Step 2: specifications
+  await S.page.waitForSelector("#engineCc");
+  await S.page.type("#engineCc", "1600");
+  await clickText(S.page, "Continue");
+  // Step 3: mileage & condition
   await S.page.waitForSelector("#mileageKm");
+  assert(!!(await S.page.$("#condition")), "condition sits with mileage in its own step");
   await S.page.type("#mileageKm", "61000");
   await clickText(S.page, "Continue");
-  // Step 3: price & location (saves the draft)
+  // Step 4: price & location (saves the draft)
   await S.page.waitForSelector("#priceEgp");
   await S.page.type("#priceEgp", "880,000");
   await clickText(S.page, "Continue");
-  // Step 4: photos
+  // Step 5: photos
   await S.page.waitForSelector("input[type=file]");
   const editUrl = S.page.url();
   assert(/\/sell\?draft=[0-9a-f-]{36}$/.test(editUrl), "draft saved and URL is resumable");
@@ -117,7 +129,7 @@ try {
   await clickText(S.page, "Continue");
   await S.page.waitForSelector("input[type=file]");
   await clickText(S.page, "Continue");
-  // Step 5: description & known defects
+  // Step 6: description & known defects
   await S.page.waitForSelector("#description");
   await S.page.type("#description", "Agency maintained, original paint, two keys. Selling because I'm moving abroad.");
   await S.page.type("#knownDefects", "Small scratch on rear bumper");

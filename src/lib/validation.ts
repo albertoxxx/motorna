@@ -16,7 +16,8 @@ export type ValidationKey =
   | "messageLength"
   | "newUsedMileage"
   | "modelOther"
-  | "knownDefectsLength";
+  | "knownDefectsLength"
+  | "trimIsEngine";
 
 export const CONDITIONS = ["new", "used"] as const;
 export const TRANSMISSIONS = ["automatic", "manual"] as const;
@@ -51,6 +52,15 @@ const toInt = (key: ValidationKey) =>
 const optionalText = (max: number) =>
   z.preprocess((v) => (typeof v === "string" ? v.trim() || undefined : v), z.string().max(max).optional());
 
+/**
+ * True when a "trim" value is only an engine size ("3000cc", "1.6", "2.0 L", "1600 سي سي").
+ * Engine size has its own field; keeping it out of trim keeps cards and search accurate.
+ */
+export function looksLikeEngineSize(v: string) {
+  const s = v.trim().toLowerCase().replace(/\s+/g, " ");
+  return /^\d{3,5} ?(cc|c\.c\.?|سي ?سي|سى ?سى|cm3)?$/.test(s) || /^\d(?:[.,]\d)? ?(l|lt|liter|litre|لتر|t|turbo|تيربو)?$/.test(s);
+}
+
 export const listingInputSchema = z
   .object({
     makeId: toInt("required").pipe(z.number().positive({ error: "required" })),
@@ -63,7 +73,7 @@ export const listingInputSchema = z
       (v) => (typeof v === "string" ? v.trim().replace(/\s+/g, " ") || undefined : undefined),
       z.string().min(1, { error: "modelOther" }).max(40, { error: "modelOther" }).optional(),
     ),
-    trim: optionalText(60),
+    trim: optionalText(60).refine((v) => !v || !looksLikeEngineSize(v), { error: "trimIsEngine" }),
     year: toInt("year").pipe(z.number().min(MIN_YEAR, { error: "year" }).max(maxYear(), { error: "year" })),
     mileageKm: toInt("mileage").pipe(z.number().min(0, { error: "mileage" }).max(2_000_000, { error: "mileage" })),
     priceEgp: toInt("price").pipe(z.number().min(MIN_PRICE, { error: "price" }).max(MAX_PRICE, { error: "price" })),

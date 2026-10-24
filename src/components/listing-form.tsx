@@ -7,7 +7,7 @@ import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/dictionaries/ar";
 import { saveListing, deleteImage, reorderImages } from "@/server/actions/listings";
 import type { ValidationKey } from "@/lib/validation";
-import { BODIES, CONDITIONS, FUELS, TRANSMISSIONS, maxYear, MIN_YEAR } from "@/lib/validation";
+import { BODIES, CONDITIONS, FUELS, TRANSMISSIONS, looksLikeEngineSize, maxYear, MIN_YEAR } from "@/lib/validation";
 import { Button } from "@/components/ui/button";
 import { Checkbox, Field, Input, Select, Textarea } from "@/components/ui/field";
 import { Notice } from "@/components/ui/states";
@@ -44,16 +44,19 @@ type CityWithId = CityOption & { id: number };
 
 // Step groups. Data lives in one state object, so moving between steps never loses input.
 const STEP_FIELDS: (keyof Values)[][] = [
-  ["makeId", "modelId", "modelOther", "year", "trim", "condition"],
-  ["mileageKm", "transmission", "fuelType", "bodyType", "engineCc", "color"],
+  ["makeId", "modelId", "modelOther", "year", "trim"],
+  ["transmission", "fuelType", "bodyType", "engineCc", "color"],
+  ["condition", "mileageKm"],
   ["priceEgp", "negotiable", "cityId", "area"],
   [], // photos
   ["title", "description", "knownDefects"],
   [], // review
 ];
-const PHOTOS_STEP = 3;
-const DETAILS_STEP = 4;
-const REVIEW_STEP = 5;
+const USAGE_STEP = 2;
+const PRICE_STEP = 3;
+const PHOTOS_STEP = 4;
+const DETAILS_STEP = 5;
+const REVIEW_STEP = 6;
 
 export function ListingForm({
   locale,
@@ -123,9 +126,10 @@ export function ListingForm({
     if (stepIdx.includes(0)) {
       req("makeId"); req("modelId"); req("year");
       if (v.modelId === "other" && !v.modelOther.trim()) e.modelOther = "modelOther";
+      if (v.trim.trim() && looksLikeEngineSize(v.trim)) e.trim = "trimIsEngine";
     }
-    if (stepIdx.includes(1)) req("mileageKm");
-    if (stepIdx.includes(2)) { req("priceEgp"); req("cityId"); }
+    if (stepIdx.includes(USAGE_STEP)) req("mileageKm");
+    if (stepIdx.includes(PRICE_STEP)) { req("priceEgp"); req("cityId"); }
     if (stepIdx.includes(DETAILS_STEP)) {
       if (v.title.trim().length < 10 || v.title.trim().length > 100) e.title = "titleLength";
     }
@@ -163,11 +167,11 @@ export function ListingForm({
   }
 
   function next() {
-    if (step < 2) {
+    if (step < PRICE_STEP) {
       if (localCheck([step])) setStep(step + 1);
-    } else if (step === 2) {
+    } else if (step === PRICE_STEP) {
       // A draft must exist before photos can be uploaded.
-      if (localCheck([0, 1, 2])) persist("draft", () => setStep(PHOTOS_STEP));
+      if (localCheck([0, 1, USAGE_STEP, PRICE_STEP])) persist("draft", () => setStep(PHOTOS_STEP));
     } else if (step === DETAILS_STEP) {
       if (localCheck([DETAILS_STEP])) persist("draft", () => setStep(REVIEW_STEP));
     } else {
@@ -224,7 +228,7 @@ export function ListingForm({
     });
   }
 
-  const steps = [S.steps.car, S.steps.specs, S.steps.priceLocation, S.steps.photos, S.steps.description, S.steps.review];
+  const steps = [S.steps.car, S.steps.specs, S.steps.usage, S.steps.priceLocation, S.steps.photos, S.steps.description, S.steps.review];
   const canSubmit = ["draft", "rejected", "archived"].includes(status);
   const mk = makes.find((m) => String(m.id) === v.makeId);
   const md = models.find((m) => String(m.id) === v.modelId);
@@ -298,22 +302,14 @@ export function ListingForm({
                 {years.map((y) => <option key={y} value={y}>{y}</option>)}
               </Select>
             </Field>
-            <Field label={S.condition} htmlFor="condition" required requiredLabel={dict.common.required}>
-              <Select id="condition" value={v.condition} onChange={(e) => set("condition", e.target.value)} required>
-                {CONDITIONS.map((c) => <option key={c} value={c}>{dict.enums.condition[c]}</option>)}
-              </Select>
-            </Field>
-            <Field className="sm:col-span-2" label={S.trim} htmlFor="trim" hint={S.trimHint} optional optionalLabel={dict.common.optional}>
-              <Input id="trim" value={v.trim} maxLength={60} onChange={(e) => set("trim", e.target.value)} />
+            <Field label={S.trim} htmlFor="trim" hint={S.trimHint} error={err("trim")} optional optionalLabel={dict.common.optional}>
+              <Input id="trim" value={v.trim} maxLength={60} invalid={!!errors.trim} onChange={(e) => set("trim", e.target.value)} />
             </Field>
           </div>
         )}
 
         {step === 1 && (
           <div className="grid gap-5 sm:grid-cols-2">
-            <Field label={S.mileage} htmlFor="mileageKm" error={err("mileageKm")} required requiredLabel={dict.common.required}>
-              <Input id="mileageKm" inputMode="numeric" className="tabular" value={v.mileageKm} invalid={!!errors.mileageKm} onChange={(e) => set("mileageKm", e.target.value)} required />
-            </Field>
             <Field label={S.transmission} htmlFor="transmission" required requiredLabel={dict.common.required}>
               <Select id="transmission" value={v.transmission} onChange={(e) => set("transmission", e.target.value)} required>
                 {TRANSMISSIONS.map((t) => <option key={t} value={t}>{dict.enums.transmission[t]}</option>)}
@@ -339,7 +335,20 @@ export function ListingForm({
           </div>
         )}
 
-        {step === 2 && (
+        {step === USAGE_STEP && (
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field label={S.condition} htmlFor="condition" required requiredLabel={dict.common.required}>
+              <Select id="condition" value={v.condition} onChange={(e) => set("condition", e.target.value)} required>
+                {CONDITIONS.map((c) => <option key={c} value={c}>{dict.enums.condition[c]}</option>)}
+              </Select>
+            </Field>
+            <Field label={S.mileage} htmlFor="mileageKm" error={err("mileageKm")} hint={S.mileageHint} required requiredLabel={dict.common.required}>
+              <Input id="mileageKm" inputMode="numeric" className="tabular" value={v.mileageKm} invalid={!!errors.mileageKm} onChange={(e) => set("mileageKm", e.target.value)} required />
+            </Field>
+          </div>
+        )}
+
+        {step === PRICE_STEP && (
           <div className="grid gap-5 sm:grid-cols-2">
             <Field label={S.price} htmlFor="priceEgp" error={err("priceEgp")} required requiredLabel={dict.common.required}>
               <Input id="priceEgp" inputMode="numeric" className="tabular" value={v.priceEgp} invalid={!!errors.priceEgp} onChange={(e) => set("priceEgp", e.target.value)} required />
@@ -455,8 +464,8 @@ export function ListingForm({
             {dict.common.back}
           </Button>
           <div className="flex gap-2">
-            {step >= 2 && step !== REVIEW_STEP && (
-              <Button type="button" variant="secondary" disabled={pending} onClick={() => localCheck([0, 1, 2]) && persist("draft", () => toast(S.savedDraft))}>
+            {step >= PRICE_STEP && step !== REVIEW_STEP && (
+              <Button type="button" variant="secondary" disabled={pending} onClick={() => localCheck([0, 1, USAGE_STEP, PRICE_STEP]) && persist("draft", () => toast(S.savedDraft))}>
                 {S.saveDraft}
               </Button>
             )}

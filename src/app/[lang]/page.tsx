@@ -29,6 +29,9 @@ const BANDS: [number, number | null][] = [
   [2_000_000, null],
 ];
 
+/** Below this many published cars, the home page says plainly that inventory is still small. */
+const EARLY_DAYS_THRESHOLD = 12;
+
 export default async function HomePage({ params }: PageProps<"/[lang]">) {
   const { locale, dict } = await resolveLocale(params);
   const h = dict.home;
@@ -44,8 +47,13 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
     priceReducedListings(4),
   ]);
   const saved = await favoriteIds(user?.id, [...latest, ...reduced.map((r) => r.item)].map((l) => l.id));
+  // A category list with a single entry only repeats the one card above it, so each
+  // list needs at least two non-empty entries before it is shown.
   const makesWithCars = popular.filter((m) => m.count > 0);
   const bandsWithCars = BANDS.map((band, i) => ({ band, count: bandCounts[i] })).filter((b) => b.count > 0);
+  const showMakes = makesWithCars.length >= 2;
+  const showBands = bandsWithCars.length >= 2;
+  const earlyDays = total > 0 && total < EARLY_DAYS_THRESHOLD;
   // Quick links: makes that actually have listings, most first.
   const quickMakes = (await makesWithListings()).slice(0, 6);
   const p = (s: string) => `/${locale}${s}`;
@@ -70,7 +78,7 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
             <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
               <h2 className="text-lg font-semibold">{h.searchTitle}</h2>
               <p className="text-sm text-ink-3" aria-live="polite">
-                <span className="tabular font-semibold text-ink">{formatNumber(total, locale)}</span> {h.searchCount}
+                <span className="tabular font-semibold text-ink">{formatNumber(total, locale)}</span> {total === 1 ? h.searchCountOne : h.searchCount}
               </p>
             </div>
             <SearchPanel
@@ -124,6 +132,21 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
         )}
       </section>
 
+      {/* Small inventory: say so honestly instead of padding the page. */}
+      {earlyDays && (
+        <section className="container-page pb-4" aria-labelledby="early">
+          <div className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-line bg-surface p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+            <div>
+              <h2 id="early" className="text-lg font-semibold">{h.earlyTitle}</h2>
+              <p className="mt-1 max-w-2xl text-sm leading-relaxed text-ink-2">
+                {t(h.earlyBody, { n: total === 1 ? h.earlyCountOne : t(h.earlyCount, { n: formatNumber(total, locale) }) })}
+              </p>
+            </div>
+            <ButtonLink href={p("/sell")} className="shrink-0">{h.sellerCta}</ButtonLink>
+          </div>
+        </section>
+      )}
+
       {/* Recently reduced: only listings whose price actually dropped (from price history). */}
       {reduced.length > 0 && (
         <section className="container-page py-10" aria-labelledby="reduced">
@@ -137,9 +160,9 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
       )}
 
       {/* Makes + budgets: only categories that currently have cars. */}
-      {(makesWithCars.length > 0 || bandsWithCars.length > 0) && (
+      {(showMakes || showBands) && (
         <section className="container-page grid gap-10 py-10 lg:grid-cols-[1.6fr_1fr]">
-          {makesWithCars.length > 0 && (
+          {showMakes && (
             <div aria-labelledby="makes">
               <h2 id="makes" className="mb-5 text-xl font-bold">{h.makesTitle}</h2>
               <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
@@ -161,7 +184,7 @@ export default async function HomePage({ params }: PageProps<"/[lang]">) {
               <Link href={p("/cars")} className="mt-3 inline-block text-sm font-medium text-brand-700 hover:underline">{h.allMakesLink}</Link>
             </div>
           )}
-          {bandsWithCars.length > 0 && (
+          {showBands && (
             <div aria-labelledby="budget">
               <h2 id="budget" className="mb-5 text-xl font-bold">{h.budgetTitle}</h2>
               <ul className="flex flex-col divide-y divide-line overflow-hidden rounded-[var(--radius-lg)] border border-line bg-surface">

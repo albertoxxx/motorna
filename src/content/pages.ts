@@ -20,7 +20,7 @@ const ar: Record<PageKey, StaticPage> = {
     sections: [
       { heading: "اللي بنراجعه دلوقتي", list: ["إن الصور حقيقية وللعربية نفسها ومش منقولة من النت", "إن الماركة والموديل والسنة متطابقين مع الصور", "إن السعر منطقي ومش طُعم لجذب الناس", "إن الوصف مفيهوش أرقام تحويل أو طلب عربون"] },
       { heading: "اللي مش بنراجعه لسه", paragraphs: ["لحد دلوقتي ما بنتحققش من هوية البائع، ولا من ملكية العربية، ولا من العداد، ولا من تاريخ الحوادث، ولا من المخالفات. أي شارة توثيق هتظهر في المستقبل هتكون مربوطة بفحص فعلي، وهنوضّح بالظبط اتفحص إيه وإمتى."] },
-      { heading: "لو شفت حاجة غلط", paragraphs: ["استخدم زرار «بلّغ عن الإعلان» في صفحة العربية. فريقنا بيراجع البلاغات، وممكن يوقف الإعلان أو الحساب."] },
+      { heading: "لو شفت حاجة غلط", paragraphs: ["استخدم زرار «بلّغ عن الإعلان» في صفحة العربية. البلاغ بيوصل للمشرفين، ويقدروا يشيلوا الإعلان أو يوقفوا الحساب."] },
       { heading: "قريبًا", list: ["توثيق هوية البائعين والمعارض", "حجز فحص فني من مراكز شريكة مع تقرير مفصّل", "تقدير السعر العادل مع توضيح مستوى الثقة في التقدير"] },
     ],
   },
@@ -28,7 +28,7 @@ const ar: Record<PageKey, StaticPage> = {
     title: "الأسئلة الشائعة",
     sections: [
       { heading: "الإعلان مجاني؟", paragraphs: ["أيوه، الإعلان الأساسي مجاني للأفراد."] },
-      { heading: "إعلاني بيتنشر إمتى؟", paragraphs: ["بعد ما فريقنا يراجعه. تقدر تتابع الحالة من «إعلاناتي»، ولو اترفض هتشوف السبب وتقدر تعدّله وتبعته تاني."] },
+      { heading: "إعلاني بيتنشر إمتى؟", paragraphs: ["بعد ما مشرف يراجعه ويوافق عليه. تقدر تتابع الحالة من «إعلاناتي»، ولو اترفض هتشوف السبب وتقدر تعدّله وتبعته تاني."] },
       { heading: "ليه رقمي مش ظاهر؟", paragraphs: ["الرقم بيظهر للمستخدمين المسجلين بس، ولو انت فعّلت ده من الملف الشخصي. غير كده التواصل بيكون بالرسائل."] },
       { heading: "البائع طلب عربون قبل المعاينة، أعمل إيه؟", paragraphs: ["ماتحولش أي فلوس. بلّغ عن الإعلان فورًا. موتورنا مابيطلبش ولا بيستلم أي مدفوعات."] },
       { heading: "أعدّل السعر من غير ما الإعلان يرجع للمراجعة؟", paragraphs: ["أيوه. تعديل السعر بس بيفضّل الإعلان منشور. تعديل باقي البيانات أو صورة الغلاف بيرجّعه للمراجعة."] },
@@ -76,7 +76,7 @@ const en: Record<PageKey, StaticPage> = {
     sections: [
       { heading: "What we check now", list: ["Photos are real, of this car, and not copied from the web", "Make, model and year match the photos", "The price is plausible and not bait", "The description has no transfer numbers or deposit requests"] },
       { heading: "What we don't check yet", paragraphs: ["We don't currently verify seller identity, ownership, mileage, accident history or traffic fines. Any verification badge we add later will be tied to an actual check, with exactly what was checked and when."] },
-      { heading: "If something looks wrong", paragraphs: ["Use “Report listing” on the car's page. Our team reviews reports and may remove the listing or suspend the account."] },
+      { heading: "If something looks wrong", paragraphs: ["Use “Report listing” on the car's page. Reports go to MOTORNA moderators, who can remove the listing or suspend the account."] },
       { heading: "Coming next", list: ["Identity verification for sellers and dealers", "Inspection booking with partner centres and a detailed report", "Fair-price estimates that show how confident the estimate is"] },
     ],
   },
@@ -84,7 +84,7 @@ const en: Record<PageKey, StaticPage> = {
     title: "Frequently asked questions",
     sections: [
       { heading: "Is listing free?", paragraphs: ["Yes, basic listings are free for individuals."] },
-      { heading: "When will my listing go live?", paragraphs: ["Once our team has reviewed it. Track its status in My listings; if it's rejected you'll see why and can edit and resubmit."] },
+      { heading: "When will my listing go live?", paragraphs: ["Once a moderator has reviewed and approved it. Track its status in My listings; if it's rejected you'll see why and can edit and resubmit."] },
       { heading: "Why isn't my number shown?", paragraphs: ["Your number is only shown to signed-in users, and only if you enable it in your profile. Otherwise buyers message you."] },
       { heading: "A seller asked for a deposit before I saw the car. What do I do?", paragraphs: ["Don't send money. Report the listing right away. MOTORNA never asks for or holds payments."] },
       { heading: "Can I change the price without re-review?", paragraphs: ["Yes. Changing only the price keeps the listing live. Changing other details or the cover photo sends it back to review."] },
