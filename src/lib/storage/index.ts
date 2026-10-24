@@ -1,6 +1,7 @@
 import "server-only";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 
 export interface StorageDriver {
   put(key: string, data: Buffer, contentType: string): Promise<void>;
@@ -43,25 +44,58 @@ class LocalDriver implements StorageDriver {
   }
 }
 
-class NotConfiguredDriver implements StorageDriver {
-  constructor(private name: string) {}
-  private fail(): never {
-    throw new Error(
-      `Storage driver "${this.name}" is not implemented yet. Use STORAGE_DRIVER=local in development; see docs/SETUP.md for the S3/Supabase Storage step.`,
+/**
+ * S3-compatible driver (Supabase Storage, Cloudflare R2, AWS S3).
+ * Objects are served from a public bucket via S3_PUBLIC_BASE_URL.
+ */
+class S3Driver implements StorageDriver {
+  private client: S3Client;
+  constructor(
+    private bucket: string,
+    private publicBase: string,
+    opts: { endpoint?: string; region: string; accessKeyId: string; secretAccessKey: string },
+  ) {
+    this.client = new S3Client({
+      endpoint: opts.endpoint,
+      region: opts.region,
+      forcePathStyle: true,
+      credentials: { accessKeyId: opts.accessKeyId, secretAccessKey: opts.secretAccessKey },
+    });
+  }
+  async put(key: string, data: Buffer, contentType: string) {
+    assertSafeKey(key);
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: data,
+        ContentType: contentType,
+        CacheControl: "public, max-age=31536000, immutable",
+      }),
     );
   }
-  put(): Promise<void> {
-    this.fail();
+  async get(key: string) {
+    assertSafeKey(key);
+    try {
+      const res = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+      return res.Body ? Buffer.from(await res.Body.transformToByteArray()) : null;
+    } catch {
+      return null;
+    }
   }
-  get(): Promise<Buffer | null> {
-    this.fail();
+  async delete(key: string) {
+    assertSafeKey(key);
+    await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
   }
-  delete(): Promise<void> {
-    this.fail();
+  publicUrl(key: string) {
+    return `${this.publicBase}/${key}`;
   }
-  publicUrl(): string {
-    this.fail();
-  }
+}
+
+function required(name: string) {
+  const v = process.env[name];
+  if (!v) throw new Error(`${name} is required when STORAGE_DRIVER=s3`);
+  return v;
 }
 
 let driver: StorageDriver | null = null;
@@ -74,8 +108,15 @@ export function storage(): StorageDriver {
       throw new Error("Local storage is for development only. Configure STORAGE_DRIVER=s3 for production.");
     }
     driver = new LocalDriver(path.resolve(/*turbopackIgnore: true*/ process.env.STORAGE_LOCAL_DIR ?? "./storage/uploads"));
+  } else if (kind === "s3") {
+    driver = new S3Driver(required("S3_BUCKET"), required("S3_PUBLIC_BASE_URL").replace(/\/$/, ""), {
+      endpoint: process.env.S3_ENDPOINT || undefined,
+      region: process.env.S3_REGION || "auto",
+      accessKeyId: required("S3_ACCESS_KEY_ID"),
+      secretAccessKey: required("S3_SECRET_ACCESS_KEY"),
+    });
   } else {
-    driver = new NotConfiguredDriver(kind);
+    throw new Error(`Unknown STORAGE_DRIVER "${kind}". Use "local" or "s3".`);
   }
   return driver;
 }
