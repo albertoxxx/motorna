@@ -257,7 +257,7 @@ export async function expireStale(scope: { centerId?: string; customerId?: strin
   const candidates = await db
     .select({ id: B.id })
     .from(B)
-    .where(and(...conds, sql`NOT EXISTS (SELECT 1 FROM ${TO} WHERE ${TO.bookingId} = ${B.id} AND ${TO.state} = 'open' AND ${TO.startsAt} > ${now})`));
+    .where(and(...conds, sql`NOT EXISTS (SELECT 1 FROM ${TO} WHERE ${TO.bookingId} = "bookings"."id" AND ${TO.state} = 'open' AND ${TO.startsAt} > ${now})`));
   if (!candidates.length) return 0;
   const { expireBooking } = await import("@/server/booking-engine");
   let n = 0;

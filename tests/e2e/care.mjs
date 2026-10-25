@@ -239,7 +239,8 @@ try {
   assert(!(await text(O.page)).includes("Visited on Sunday"), "internal note is not visible to the center");
 
   // Public
-  await go(P.page, "/en/care");
+  // Search by name: earlier test runs leave other approved test centers that can push this one off page 1.
+  await go(P.page, `/en/care?q=${encodeURIComponent(nameEn)}`);
   assert((await text(P.page)).includes(nameEn), "approved center appears in the English directory");
   await go(P.page, `/en/care?provider=inspection_center&make=toyota&q=${encodeURIComponent(nameEn)}`);
   assert((await text(P.page)).includes(nameEn), "provider + make + name search finds the center");

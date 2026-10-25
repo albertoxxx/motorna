@@ -144,7 +144,7 @@ export default async function ListingPage({ params }: PageProps<"/[lang]/cars/[s
         </Notice>
       )}
 
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_23rem] lg:grid-rows-[auto_1fr]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_23rem] lg:grid-rows-[auto_1fr]">
         <div className="min-w-0 lg:col-start-1">
           <Gallery images={data.images} alt={name} labels={{ noPhotos: L.noPhotos, photoOf: L.photoOf, prev: dict.common.previous, next: dict.common.nextPage, fullscreen: L.fullscreen, close: dict.nav.close }} />
         </div>

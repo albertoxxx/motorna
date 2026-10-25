@@ -129,10 +129,11 @@ try {
   await clickText(C.page, "التالي");
   await C.page.waitForSelector("#bk-date");
   await C.page.select("#bk-date", await C.page.$eval("#bk-date option:nth-child(2)", (o) => o.value));
-  await C.page.waitForFunction(() => !document.body.innerText.includes("بنجيب المواعيد") && document.querySelectorAll("button[aria-pressed]").length >= 5);
-  const slotsBtns = await C.page.$$("button[aria-pressed]");
-  await slotsBtns[2].evaluate((b) => b.click());
-  await slotsBtns[4].evaluate((b) => b.click());
+  await C.page.waitForFunction(() => !document.body.innerText.includes("بنجيب المواعيد") && document.querySelectorAll("button[aria-pressed]").length >= 5, { timeout: 30000 });
+  await C.page.evaluate(() => { const b = document.querySelectorAll("button[aria-pressed]"); b[2].click(); });
+  await C.page.waitForFunction(() => document.querySelectorAll("button[aria-pressed=true]").length === 1);
+  await C.page.evaluate(() => { const b = document.querySelectorAll("button[aria-pressed]"); b[4].click(); });
+  await C.page.waitForFunction(() => document.querySelectorAll("button[aria-pressed=true]").length === 2);
   await clickText(C.page, "التالي");
   await C.page.waitForSelector("#bk-phone");
   await C.page.type("#bk-phone", "01012345678");

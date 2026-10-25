@@ -24,9 +24,9 @@ export async function userFavoriteListingIds(userId: string) {
 const other = alias(U, "other_party");
 
 export async function conversationList(userId: string) {
-  const lastMsg = sql<string | null>`(SELECT ${M.body} FROM ${M} WHERE ${M.conversationId} = ${CV.id} ORDER BY ${M.createdAt} DESC LIMIT 1)`;
-  const unread = sql<number>`(SELECT count(*)::int FROM ${M} WHERE ${M.conversationId} = ${CV.id} AND ${M.senderId} <> ${userId} AND ${M.readAt} IS NULL)`;
-  const cover = sql<string | null>`(SELECT ${IMG.thumbKey} FROM ${IMG} WHERE ${IMG.listingId} = ${L.id} ORDER BY ${IMG.position} LIMIT 1)`;
+  const lastMsg = sql<string | null>`(SELECT ${M.body} FROM ${M} WHERE ${M.conversationId} = "conversations"."id" ORDER BY ${M.createdAt} DESC LIMIT 1)`;
+  const unread = sql<number>`(SELECT count(*)::int FROM ${M} WHERE ${M.conversationId} = "conversations"."id" AND ${M.senderId} <> ${userId} AND ${M.readAt} IS NULL)`;
+  const cover = sql<string | null>`(SELECT ${IMG.thumbKey} FROM ${IMG} WHERE ${IMG.listingId} = "listings"."id" ORDER BY ${IMG.position} LIMIT 1)`;
   const rows = await db
     .select({
       id: CV.id,
@@ -95,12 +95,15 @@ export async function conversationThread(userId: string, conversationId: string)
 /* Admin */
 
 export async function adminStats() {
-  const [row] = await db.execute<{ pending: number; published: number; reports: number; users: number }>(sql`
+  const [row] = await db.execute<{ pending: number; published: number; reports: number; users: number; centersQueue: number; disputes: number; bookingsWaiting: number }>(sql`
     SELECT
       (SELECT count(*)::int FROM listings WHERE status = 'pending_review' AND deleted_at IS NULL) AS pending,
       (SELECT count(*)::int FROM listings WHERE status = 'published' AND deleted_at IS NULL) AS published,
       (SELECT count(*)::int FROM reports WHERE status IN ('open','reviewing')) AS reports,
-      (SELECT count(*)::int FROM users) AS users
+      (SELECT count(*)::int FROM users) AS users,
+      (SELECT count(*)::int FROM service_centers WHERE status IN ('applied','under_review')) AS "centersQueue",
+      (SELECT count(*)::int FROM booking_disputes WHERE status IN ('open','reviewing')) AS disputes,
+      (SELECT count(*)::int FROM bookings WHERE status = 'pending_provider') AS "bookingsWaiting"
   `).then((r) => r.rows);
   return row;
 }
@@ -215,4 +218,31 @@ export async function listingForEdit(userId: string, listingId: string) {
   if (!l || l.sellerId !== userId) return null;
   const imgs = await db.select().from(IMG).where(eq(IMG.listingId, l.id)).orderBy(asc(IMG.position), asc(IMG.createdAt));
   return { listing: l, images: imgs.map((i) => ({ id: i.id, thumbUrl: storage().publicUrl(i.thumbKey) })) };
+}
+
+/** Admin user directory: newest first, optional search by name or email, optional suspended-only filter. */
+export async function adminUsers(q?: string, suspendedOnly = false) {
+  const term = q?.trim().slice(0, 80);
+  const like = term ? `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%` : null;
+  return db
+    .select({
+      id: schema.users.id,
+      name: schema.users.name,
+      email: schema.users.email,
+      role: schema.users.role,
+      suspendedAt: schema.users.suspendedAt,
+      suspensionReason: schema.users.suspensionReason,
+      createdAt: schema.users.createdAt,
+      listings: sql<number>`(SELECT count(*)::int FROM listings l WHERE l.seller_id = "users"."id" AND l.deleted_at IS NULL)`,
+      centers: sql<number>`(SELECT count(*)::int FROM center_staff cs WHERE cs.user_id = "users"."id" AND cs.active)`,
+    })
+    .from(schema.users)
+    .where(
+      and(
+        like ? sql`(${schema.users.name} ILIKE ${like} OR ${schema.users.email} ILIKE ${like})` : undefined,
+        suspendedOnly ? sql`${schema.users.suspendedAt} IS NOT NULL` : undefined,
+      ),
+    )
+    .orderBy(desc(schema.users.createdAt))
+    .limit(100);
 }

@@ -29,10 +29,10 @@ export function HoursEditor({ dict, centerId, hours, editable }: { dict: CareDic
       <p className="text-sm text-ink-3">{D.hoursHint}</p>
       <div className="grid gap-2">
         {order.map((d) => (
-          <div key={d} className="grid grid-cols-[6rem_1fr_1fr] items-center gap-2 text-sm">
+          <div key={d} className="grid grid-cols-[minmax(3.5rem,6rem)_minmax(0,1fr)_minmax(0,1fr)] items-center gap-2 text-sm">
             <span className="font-medium">{dict.care.enums.weekday[d]}</span>
-            <Input type="time" aria-label={`${dict.care.enums.weekday[d]} ${D.opens}`} value={rows[d].opens} disabled={!editable} onChange={(e) => setRows((r) => ({ ...r, [d]: { ...r[d], opens: e.target.value } }))} />
-            <Input type="time" aria-label={`${dict.care.enums.weekday[d]} ${D.closes}`} value={rows[d].closes} disabled={!editable} onChange={(e) => setRows((r) => ({ ...r, [d]: { ...r[d], closes: e.target.value } }))} />
+            <Input type="time" className="min-w-0 px-2!" aria-label={`${dict.care.enums.weekday[d]} ${D.opens}`} value={rows[d].opens} disabled={!editable} onChange={(e) => setRows((r) => ({ ...r, [d]: { ...r[d], opens: e.target.value } }))} />
+            <Input type="time" className="min-w-0 px-2!" aria-label={`${dict.care.enums.weekday[d]} ${D.closes}`} value={rows[d].closes} disabled={!editable} onChange={(e) => setRows((r) => ({ ...r, [d]: { ...r[d], closes: e.target.value } }))} />
           </div>
         ))}
       </div>

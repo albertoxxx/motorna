@@ -31,10 +31,10 @@ export type ListingCardData = {
 };
 
 const coverKey = sql<string | null>`(
-  SELECT ${IMG.thumbKey} FROM ${IMG} WHERE ${IMG.listingId} = ${L.id}
+  SELECT ${IMG.thumbKey} FROM ${IMG} WHERE ${IMG.listingId} = "listings"."id"
   ORDER BY ${IMG.position} ASC, ${IMG.createdAt} ASC LIMIT 1
 )`;
-const imageCount = sql<number>`(SELECT count(*)::int FROM ${IMG} WHERE ${IMG.listingId} = ${L.id})`;
+const imageCount = sql<number>`(SELECT count(*)::int FROM ${IMG} WHERE ${IMG.listingId} = "listings"."id")`;
 
 const cardColumns = {
   id: L.id,

@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { moderateListing, setUserSuspension, updateReport } from "@/server/actions/admin";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/field";
+import { Input, Textarea } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
 import type { Dictionary } from "@/i18n/dictionaries/ar";
 
@@ -85,6 +85,20 @@ export function ReportActions({
           )
         )}
       </div>
+    </div>
+  );
+}
+
+/** Suspend (with a reason) or reinstate one user from the admin user directory. */
+export function UserSuspensionControl({ userId, suspended, dict }: { userId: string; suspended: boolean; dict: D }) {
+  const { pending, run } = useRun(dict);
+  const [note, setNote] = useState("");
+  const A = dict.admin;
+  if (suspended) return <Button size="sm" variant="secondary" disabled={pending} onClick={() => run(() => setUserSuspension(userId, false), A.unsuspendUser)}>{A.unsuspendUser}</Button>;
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Input aria-label={A.usersSuspendReason} placeholder={A.usersSuspendReason} value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} className="h-9! w-56 text-sm" />
+      <Button size="sm" variant="danger" disabled={pending || note.trim().length < 5} onClick={() => run(() => setUserSuspension(userId, true, note), A.suspended)}>{A.suspendUser}</Button>
     </div>
   );
 }

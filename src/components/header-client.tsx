@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Bell, Heart, LayoutList, LogOut, Menu, MessageSquare, Shield, User, X, ChevronDown, Plus, Wrench } from "lucide-react";
+import { Bell, CalendarCheck, Heart, LayoutList, LogOut, Menu, MessageSquare, Shield, User, X, ChevronDown, Plus, Wrench } from "lucide-react";
 import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/dictionaries/ar";
 import { authClient } from "@/lib/auth-client";
@@ -64,6 +64,7 @@ export function HeaderClient({ locale, nav, user, unread, notifications }: Props
     { href: p("/account/notifications"), label: nav.notifications, icon: Bell, badge: notifications },
     { href: p("/account/listings"), label: nav.myListings, icon: LayoutList },
     { href: p("/account/favorites"), label: nav.favorites, icon: Heart },
+    { href: p("/account/bookings"), label: nav.myBookings, icon: CalendarCheck },
     { href: p("/account/messages"), label: nav.messages, icon: MessageSquare, badge: unread },
     { href: p("/account/profile"), label: nav.profile, icon: User },
     ...(user?.hasCenter ? [{ href: p("/center"), label: nav.myCenter, icon: Wrench }] : []),

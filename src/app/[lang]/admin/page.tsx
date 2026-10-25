@@ -12,13 +12,16 @@ export default async function AdminHome({ params }: PageProps<"/[lang]/admin">) 
   const tiles = [
     { label: A.pendingCount, value: s.pending, href: "/admin/listings", urgent: s.pending > 0 },
     { label: A.openReports, value: s.reports, href: "/admin/reports", urgent: s.reports > 0 },
+    { label: A.centersQueue, value: s.centersQueue, href: "/admin/centers", urgent: s.centersQueue > 0 },
+    { label: A.disputesOpen, value: s.disputes, href: "/admin/bookings", urgent: s.disputes > 0 },
+    { label: A.bookingsWaiting, value: s.bookingsWaiting, href: "/admin/bookings?status=pending_provider" },
     { label: A.publishedCount, value: s.published, href: "/cars" },
-    { label: A.usersCount, value: s.users },
+    { label: A.usersCount, value: s.users, href: "/admin/users" },
   ];
   return (
     <div>
       <h1 className="mb-6 text-2xl font-bold">{A.dashboard}</h1>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
         {tiles.map((tile) => {
           const body = (
             <>

@@ -54,7 +54,7 @@ export async function approvedCenters(filter: DirectoryFilter = {}) {
   if (filter.area) conds.push(sql`lower(trim(${C.area})) = lower(trim(${filter.area}))`);
   if (filter.provider) conds.push(sql`${C.category} = ${filter.provider}`);
   if (filter.make) {
-    conds.push(sql`EXISTS (SELECT 1 FROM ${CM} JOIN ${MK} ON ${MK.id} = ${CM.makeId} WHERE ${CM.centerId} = ${C.id} AND ${MK.slug} = ${filter.make})`);
+    conds.push(sql`EXISTS (SELECT 1 FROM ${CM} JOIN ${MK} ON ${MK.id} = ${CM.makeId} WHERE ${CM.centerId} = "service_centers"."id" AND ${MK.slug} = ${filter.make})`);
   }
   if (filter.q) {
     // Name or location: Arabic/English name, area, address, governorate.
@@ -63,7 +63,7 @@ export async function approvedCenters(filter: DirectoryFilter = {}) {
   }
   if (filter.category) {
     conds.push(
-      sql`EXISTS (SELECT 1 FROM ${SV} WHERE ${SV.centerId} = ${C.id} AND ${SV.active} AND ${SV.category} = ${filter.category})`,
+      sql`EXISTS (SELECT 1 FROM ${SV} WHERE ${SV.centerId} = "service_centers"."id" AND ${SV.active} AND ${SV.category} = ${filter.category})`,
     );
   }
   const where = and(...conds);

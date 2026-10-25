@@ -35,11 +35,11 @@ export function ContactPanel({
     const signUpHref = signInHref.replace("/auth/sign-in", "/auth/sign-up");
     return (
       <div className="flex flex-col gap-2">
-        <ButtonLink href={signUpHref} size="lg" className="w-full">
+        <ButtonLink href={signUpHref} size="lg" className="h-auto! min-h-12 w-full py-2.5 text-center whitespace-normal!">
           <MessageSquare className="size-4" />
           {dict.listing.contactSignUp}
         </ButtonLink>
-        <ButtonLink href={signInHref} size="lg" variant="secondary" className="w-full">
+        <ButtonLink href={signInHref} size="lg" variant="secondary" className="h-auto! min-h-12 w-full py-2.5 text-center whitespace-normal!">
           {dict.listing.contactHaveAccount}
         </ButtonLink>
         <p className="text-xs leading-relaxed text-ink-3">{dict.listing.whyAccount}</p>
