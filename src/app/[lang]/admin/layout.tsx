@@ -11,7 +11,7 @@ export default async function AdminLayout({ children, params }: LayoutProps<"/[l
   return (
     <div className="container-page py-8">
       <p className="mb-1 text-sm font-semibold text-brand-700">{A.title}</p>
-      <div className="grid gap-8 lg:grid-cols-[13rem_1fr]">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[13rem_1fr]">
         <AccountNav
           locale={locale}
           links={[

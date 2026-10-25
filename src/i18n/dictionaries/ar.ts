@@ -7,6 +7,7 @@ const ar = {
     description: "اشتري أو بيع عربيتك في مصر بثقة. إعلانات مراجعة، فلاتر دقيقة، وتواصل آمن مع البائع.",
   },
   nav: {
+    notifications: "الإشعارات",
     care: "مراكز الصيانة",
     myCenter: "لوحة المركز",
     browse: "تصفح السيارات",
@@ -505,6 +506,28 @@ const ar = {
     legal: "قانوني",
     rights: "جميع الحقوق محفوظة.",
     disclaimer: "موتورنا منصة إعلانات. لا نمتلك السيارات المعروضة ولا نستلم أي مدفوعات بين البائع والمشتري.",
+  },
+  notifications: {
+    title: "الإشعارات",
+    bell: "الإشعارات",
+    unread: "{n} غير مقروءة",
+    empty: "مفيش إشعارات لسه. هنا هتلاقي نشر أو رفض إعلاناتك، والرسائل الجديدة، وتحديثات طلب مركزك.",
+    markAll: "اعتبرها كلها مقروءة",
+    markedAll: "تمام",
+    kinds: {
+      listing_approved: "إعلانك «{title}» اتنشر وبقى ظاهر للمشترين.",
+      listing_rejected: "إعلانك «{title}» محتاج تعديل: {reason}",
+      listing_taken_down: "إعلانك «{title}» اتشال من النشر: {reason}",
+      message: "رسالة جديدة من {from} عن «{listing}».",
+    },
+    center: {
+      requestChanges: "مطلوب تعديلات على طلب «{center}»: {reason}",
+      reject: "طلب «{center}» اترفض: {reason}",
+      approve: "«{center}» اتعمد وبقى ظاهر في دليل موتورنا كير.",
+      suspend: "«{center}» اتوقف مؤقتًا: {reason}",
+      reinstate: "«{center}» رجع ظاهر في الدليل.",
+      revoke: "اعتماد «{center}» اتسحب: {reason}",
+    },
   },
   errors: {
     applicationIncomplete: "الطلب ناقص. كمّل قائمة الطلب الأول.",

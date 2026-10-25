@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Heart, LayoutList, LogOut, Menu, MessageSquare, Shield, User, X, ChevronDown, Plus, Wrench } from "lucide-react";
+import { Bell, Heart, LayoutList, LogOut, Menu, MessageSquare, Shield, User, X, ChevronDown, Plus, Wrench } from "lucide-react";
 import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/dictionaries/ar";
 import { authClient } from "@/lib/auth-client";
@@ -16,6 +16,7 @@ type Props = {
   nav: Dictionary["nav"];
   user: { name: string; isAdmin: boolean; hasCenter: boolean } | null;
   unread: number;
+  notifications: number;
 };
 
 export function switchLocalePath(pathname: string, to: Locale) {
@@ -24,7 +25,7 @@ export function switchLocalePath(pathname: string, to: Locale) {
   return parts.join("/") || `/${to}`;
 }
 
-export function HeaderClient({ locale, nav, user, unread }: Props) {
+export function HeaderClient({ locale, nav, user, unread, notifications }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -60,6 +61,7 @@ export function HeaderClient({ locale, nav, user, unread }: Props) {
   }
 
   const accountLinks = [
+    { href: p("/account/notifications"), label: nav.notifications, icon: Bell, badge: notifications },
     { href: p("/account/listings"), label: nav.myListings, icon: LayoutList },
     { href: p("/account/favorites"), label: nav.favorites, icon: Heart },
     { href: p("/account/messages"), label: nav.messages, icon: MessageSquare, badge: unread },
@@ -75,7 +77,7 @@ export function HeaderClient({ locale, nav, user, unread }: Props) {
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:start-4 focus:top-3 focus:z-50 focus:rounded focus:bg-navy-900 focus:px-3 focus:py-2 focus:text-white">
         {nav.skipToContent}
       </a>
-      <div className="container-page flex h-16 items-center gap-6">
+      <div className="container-page flex h-16 items-center gap-3 sm:gap-6">
         <Logo locale={locale} />
         <nav className="hidden items-center gap-1 lg:flex" aria-label="Main">
           <Link href={p("/cars")} className={cn("whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium", isActive(p("/cars")) ? "text-ink" : "text-ink-2 hover:text-ink")}>
@@ -88,7 +90,7 @@ export function HeaderClient({ locale, nav, user, unread }: Props) {
             {nav.help}
           </Link>
         </nav>
-        <div className="ms-auto flex items-center gap-2">
+        <div className="ms-auto flex items-center gap-1 sm:gap-2">
           <Link
             href={switchLocalePath(pathname, other)}
             hrefLang={other}
@@ -98,6 +100,20 @@ export function HeaderClient({ locale, nav, user, unread }: Props) {
           >
             {nav.language}
           </Link>
+          {user && (
+            <Link
+              href={p("/account/notifications")}
+              aria-label={notifications > 0 ? `${nav.notifications} (${notifications})` : nav.notifications}
+              className="relative inline-flex size-10 items-center justify-center rounded-md text-ink hover:bg-canvas"
+            >
+              <Bell className="size-5" aria-hidden />
+              {notifications > 0 && (
+                <span className="tabular absolute -top-0.5 end-0.5 grid min-w-5 place-items-center rounded-full bg-danger-600 px-1 text-[0.7rem] font-semibold leading-5 text-white ring-2 ring-surface" aria-hidden>
+                  {notifications > 9 ? "9+" : notifications}
+                </span>
+              )}
+            </Link>
+          )}
           {user ? (
             <div className="relative hidden lg:block" ref={menuRef}>
               <button
@@ -133,9 +149,10 @@ export function HeaderClient({ locale, nav, user, unread }: Props) {
               {nav.signIn}
             </Link>
           )}
-          <Link href={p("/sell")} className={buttonClass("primary", "md", "hidden sm:inline-flex")}>
+          <Link href={p("/sell")} aria-label={nav.sell} className={buttonClass("primary", "md", "hidden px-3 sm:inline-flex xs:px-4")}>
             <Plus className="size-4" />
-            {nav.sell}
+            {/* Icon-only on the narrowest phones so the header never scrolls sideways. */}
+            <span className="max-xs:sr-only">{nav.sell}</span>
           </Link>
           <button
             className="relative inline-flex size-10 items-center justify-center rounded-md text-ink hover:bg-canvas lg:hidden"

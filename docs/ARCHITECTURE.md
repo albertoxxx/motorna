@@ -112,3 +112,16 @@ A visitor can browse and filter real listings in Arabic or English, open a listi
 | `STORAGE_DRIVER` (`local` \| `s3`) + `S3_*` | Image storage | Local works; S3/Supabase Storage needs a bucket |
 | `EMAIL_PROVIDER` + key | Password reset, alerts | Not configured — reset links log to server console in dev |
 | `ANTHROPIC_API_KEY` | Phase 2 AI features | Not needed yet |
+
+## In-app notifications (migration `0007_notifications`)
+
+The `notifications` table has one row per item: `user_id`, `kind`, `data` jsonb, a locale-less `href`, `read_at`, and an optional `dedupe_key`.
+
+- **Text:** rendered at display time from `kind` + `data` in the reader's language. Message notifications never contain the message text.
+- **Link safety:** `href` must be a local path, enforced in code and by a DB check, so a notification can't become an open redirect.
+- **What creates them:**
+  - Listing approved, rejected or taken down (with the moderator's reason).
+  - A new message. The `conv:<id>` dedupe key keeps one unread item per conversation, and it's marked read when the thread is opened.
+  - Service-center status changes, sent to active owners and managers.
+- **Where they show:** the header bell links to `/[lang]/account/notifications`, with an unread badge. Opening an item marks it read (only if it belongs to the caller) and redirects to its page. "Mark all as read" is available too.
+- **Relation to email:** independent. In-app notices work with no email provider configured.

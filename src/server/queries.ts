@@ -2,6 +2,7 @@ import "server-only";
 import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db, schema } from "@/db";
+import { markConversationNotificationsRead } from "@/server/notifications";
 import { storage } from "@/lib/storage";
 
 const { listings: L, conversations: CV, messages: M, users: U, favorites: F, reports: R, auditLogs: A, listingImages: IMG, vehicleMakes: MK, vehicleModels: MD, cities: C } = schema;
@@ -81,6 +82,7 @@ export async function conversationThread(userId: string, conversationId: string)
     .update(M)
     .set({ readAt: new Date() })
     .where(and(eq(M.conversationId, c.id), ne(M.senderId, userId), isNull(M.readAt)));
+  await markConversationNotificationsRead(userId, c.id);
   const msgs = await db
     .select({ id: M.id, body: M.body, senderId: M.senderId, createdAt: M.createdAt })
     .from(M)

@@ -3,6 +3,7 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/db";
+import { createNotification } from "@/server/notifications";
 import { getCurrentUser } from "@/server/session";
 import { rateLimit } from "@/server/rate-limit";
 import { fail, ok, type ActionResult } from "@/server/result";
@@ -12,7 +13,7 @@ const { listings: L, favorites: F, conversations: CV, messages: M, reports: R, u
 
 async function publishedListing(listingId: string) {
   const [l] = await db
-    .select({ id: L.id, sellerId: L.sellerId, status: L.status, slug: L.slug, showPhone: L.showPhone })
+    .select({ id: L.id, sellerId: L.sellerId, status: L.status, slug: L.slug, title: L.title, showPhone: L.showPhone })
     .from(L)
     .where(and(eq(L.id, listingId), isNull(L.deletedAt)));
   return l && l.status === "published" ? l : null;
@@ -69,6 +70,8 @@ export async function contactSeller(
     }
     await tx.insert(M).values({ conversationId: id, senderId: user.id, body: parsed.data });
     await tx.update(CV).set({ lastMessageAt: new Date() }).where(eq(CV.id, id));
+    // In-app notice for the seller (no message text in the notification itself).
+    await createNotification(l.sellerId, "message", { from: user.name, listing: l.title }, `/account/messages/${id}`, `conv:${id}`, tx);
     return id;
   });
   revalidatePath("/[lang]/account/messages", "layout");
@@ -92,6 +95,9 @@ export async function sendMessage(conversationId: string, body: string): Promise
   const [m] = await db.transaction(async (tx) => {
     const rows = await tx.insert(M).values({ conversationId, senderId: user.id, body: parsed.data }).returning({ id: M.id });
     await tx.update(CV).set({ lastMessageAt: new Date() }).where(eq(CV.id, conversationId));
+    const [t] = await tx.select({ title: L.title }).from(L).where(eq(L.id, c.listingId));
+    const recipient = c.buyerId === user.id ? c.sellerId : c.buyerId;
+    await createNotification(recipient, "message", { from: user.name, listing: t?.title ?? "" }, `/account/messages/${conversationId}`, `conv:${conversationId}`, tx);
     return rows;
   });
   revalidatePath("/[lang]/account/messages", "layout");

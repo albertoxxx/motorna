@@ -208,6 +208,16 @@ try {
   const anonUpload = await A.page.evaluate(async (id) => (await fetch(`/api/listings/${id}/images`, { method: "POST", body: new FormData() })).status, listingId);
   assert(anonUpload === 401, "anonymous upload is rejected (401)");
 
+  // Seller's bell: approval + new message
+  await go(S.page, "/en");
+  const bell = await S.page.$eval("header a[href='/en/account/notifications']", (a) => a.getAttribute("aria-label"));
+  assert(/Notifications \(\d+\)/.test(bell), "header bell shows an unread count for the seller");
+  await go(S.page, "/en/account/notifications");
+  const notes = await S.page.evaluate(() => document.body.innerText);
+  assert(notes.includes("is live and visible to buyers") && notes.includes(`New message from ${"E2E Buyer"}`), "notifications list the approval and the new message");
+  await Promise.all([S.page.waitForNavigation({ waitUntil: "networkidle0" }), S.page.evaluate(() => [...document.querySelectorAll("form button")].find((b) => b.textContent.includes("New message from"))?.click())]);
+  assert(/\/en\/account\/messages\/[0-9a-f-]{36}$/.test(S.page.url()), "opening a message notification goes to the conversation");
+
   // Seller reads and replies
   await go(S.page, "/en/account/messages");
   assert((await S.page.content()).includes(buyer.name), "seller sees the conversation");
@@ -276,6 +286,13 @@ try {
   assert(!overflow2, "no horizontal overflow at 390px (ar listing)");
   await shot(A.page, "e2e-detail-ar-mobile");
 
+  // Signed-in header (bell + menu) and account pages must fit narrow phones
+  await B.page.setViewport({ width: 360, height: 780, isMobile: true });
+  for (const u of ["/ar", "/ar/account/notifications"]) {
+    await go(B.page, u);
+    const w = await B.page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    assert(w <= 1, `no horizontal overflow at 360px when signed in (${u})`);
+  }
   console.log(`\nAll ${step} checks passed.`);
 } catch (e) {
   console.error(e.message ?? e);

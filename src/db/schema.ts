@@ -709,6 +709,32 @@ export const centerPhotos = pgTable(
   (t) => [index("center_photos_center_idx").on(t.centerId, t.position)],
 );
 
+/**
+ * In-app notifications. Text is rendered from `kind` + `data` in the reader's language at display
+ * time; `href` is locale-less ("/account/listings/…"). `dedupeKey` collapses repeats while unread
+ * (e.g. several messages in one conversation).
+ */
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    userId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text().notNull(),
+    data: jsonb().$type<Record<string, string | null>>().notNull().default({}),
+    href: text().notNull(),
+    dedupeKey: text(),
+    readAt: timestamp({ withTimezone: true }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("notifications_user_idx").on(t.userId, t.createdAt),
+    uniqueIndex("notifications_unread_dedupe_idx").on(t.userId, t.dedupeKey).where(sql`${t.readAt} IS NULL AND ${t.dedupeKey} IS NOT NULL`),
+    check("notifications_href_local", sql`${t.href} LIKE '/%' AND ${t.href} NOT LIKE '//%'`),
+  ],
+);
+
 export type ServiceCenter = typeof serviceCenters.$inferSelect;
 export type CenterStatus = (typeof centerStatus.enumValues)[number];
 export type CenterStaffRole = (typeof centerStaffRole.enumValues)[number];

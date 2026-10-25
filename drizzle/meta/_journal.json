@@ -50,6 +50,13 @@
       "when": 1792915369555,
       "tag": "0006_care_providers",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792916603683,
+      "tag": "0007_notifications",
+      "breakpoints": true
     }
   ]
 }

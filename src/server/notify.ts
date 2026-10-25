@@ -5,6 +5,7 @@ import { sendEmail } from "@/lib/email";
 import { siteUrl } from "@/lib/site";
 import { centerStatusEmail, listingApprovedEmail, listingRejectedEmail, type CenterNotice } from "@/lib/email-templates";
 import type { Locale } from "@/i18n/config";
+import { createNotification } from "@/server/notifications";
 
 const loc = (v: string | null | undefined): Locale => (v === "en" ? "en" : "ar");
 
@@ -20,7 +21,16 @@ async function safely(fn: () => Promise<unknown>) {
   }
 }
 
-export function notifyListingModerated(listingId: string, decision: "approve" | "reject" | "takeDown", reason: string | null) {
+export async function notifyListingModerated(listingId: string, decision: "approve" | "reject" | "takeDown", reason: string | null) {
+  await safely(async () => {
+    const [row] = await db
+      .select({ title: schema.listings.title, slug: schema.listings.slug, sellerId: schema.listings.sellerId })
+      .from(schema.listings)
+      .where(eq(schema.listings.id, listingId));
+    if (!row) return;
+    const kind = decision === "approve" ? "listing_approved" : decision === "reject" ? "listing_rejected" : "listing_taken_down";
+    await createNotification(row.sellerId, kind, { title: row.title, reason }, decision === "approve" ? `/cars/${row.slug}` : `/account/listings/${listingId}/edit`);
+  });
   return safely(async () => {
     const [row] = await db
       .select({ title: schema.listings.title, slug: schema.listings.slug, email: schema.users.email, locale: schema.users.locale })
@@ -37,8 +47,18 @@ export function notifyListingModerated(listingId: string, decision: "approve" | 
   });
 }
 
-/** Emails every active owner/manager of the center. */
-export function notifyCenterStatus(centerId: string, action: CenterNotice, reason: string | null) {
+/** Notifies (in-app + email) every active owner/manager of the center. */
+export async function notifyCenterStatus(centerId: string, action: CenterNotice, reason: string | null) {
+  await safely(async () => {
+    const rows = await db
+      .select({ userId: schema.centerStaff.userId, role: schema.centerStaff.role, nameAr: schema.serviceCenters.nameAr, nameEn: schema.serviceCenters.nameEn, slug: schema.serviceCenters.slug })
+      .from(schema.centerStaff)
+      .innerJoin(schema.serviceCenters, eq(schema.serviceCenters.id, schema.centerStaff.centerId))
+      .where(and(eq(schema.centerStaff.centerId, centerId), eq(schema.centerStaff.active, true)));
+    for (const r of rows.filter((x) => x.role === "owner" || x.role === "manager")) {
+      await createNotification(r.userId, "center_status", { action, centerAr: r.nameAr, centerEn: r.nameEn, reason }, `/center/${r.slug}`);
+    }
+  });
   return safely(async () => {
     const rows = await db
       .select({ nameAr: schema.serviceCenters.nameAr, nameEn: schema.serviceCenters.nameEn, slug: schema.serviceCenters.slug, email: schema.users.email, locale: schema.users.locale, role: schema.centerStaff.role })

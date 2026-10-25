@@ -8,6 +8,7 @@ const en: Dictionary = {
     description: "Buy or sell a car in Egypt with confidence. Reviewed listings, precise filters, and safe messaging with sellers.",
   },
   nav: {
+    notifications: "Notifications",
     care: "Service centers",
     myCenter: "My center",
     browse: "Browse cars",
@@ -506,6 +507,28 @@ const en: Dictionary = {
     legal: "Legal",
     rights: "All rights reserved.",
     disclaimer: "MOTORNA is a listings platform. We don't own the cars listed and don't handle payments between buyers and sellers.",
+  },
+  notifications: {
+    title: "Notifications",
+    bell: "Notifications",
+    unread: "{n} unread",
+    empty: "No notifications yet. You'll see listing approvals and rejections, new messages and center application updates here.",
+    markAll: "Mark all as read",
+    markedAll: "Done",
+    kinds: {
+      listing_approved: "Your listing “{title}” is live and visible to buyers.",
+      listing_rejected: "Your listing “{title}” needs changes: {reason}",
+      listing_taken_down: "Your listing “{title}” was taken down: {reason}",
+      message: "New message from {from} about “{listing}”.",
+    },
+    center: {
+      requestChanges: "Changes requested on “{center}”: {reason}",
+      reject: "“{center}” application was rejected: {reason}",
+      approve: "“{center}” is approved and listed in MOTORNA Care.",
+      suspend: "“{center}” was suspended: {reason}",
+      reinstate: "“{center}” is listed again.",
+      revoke: "“{center}” approval was revoked: {reason}",
+    },
   },
   errors: {
     applicationIncomplete: "The application is incomplete. Finish the checklist first.",

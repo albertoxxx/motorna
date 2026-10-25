@@ -25,6 +25,8 @@ const { db, schema } = await import("@/db");
 const listings = await import("@/server/actions/listings");
 const engagement = await import("@/server/actions/engagement");
 const admin = await import("@/server/actions/admin");
+const notif = await import("@/server/actions/notifications");
+const queries = await import("@/server/queries");
 const { rateLimit } = await import("@/server/rate-limit");
 
 const users: Record<"seller" | "buyer" | "other" | "admin", U> = {} as never;
@@ -395,6 +397,64 @@ describe("password recovery email", () => {
     await auth.api.resetPassword({ body: { token: token!, newPassword: "new-password-2" } });
     const signIn = await auth.api.signInEmail({ body: { email, password: "new-password-2" } });
     expect(signIn.user.email).toBe(email);
+  });
+});
+
+describe("in-app notifications", () => {
+  const N = () => schema.notifications;
+  const mine = (uid: string) => db.select().from(N()).where(eq(N().userId, uid));
+  it("moderation decisions notify the seller with the reason", async () => {
+    await db.delete(N()).where(eq(N().userId, users.seller.id));
+    const id = await publishedListing();
+    let rows = await mine(users.seller.id);
+    expect(rows.some((r) => r.kind === "listing_approved" && r.href.startsWith("/cars/"))).toBe(true);
+    current = users.admin;
+    await admin.moderateListing(id, "takeDown", "Wrong photos for this car");
+    rows = await mine(users.seller.id);
+    const down = rows.find((r) => r.kind === "listing_taken_down")!;
+    expect(down.data.reason).toBe("Wrong photos for this car");
+    expect(down.href).toBe(`/account/listings/${id}/edit`);
+  });
+
+  it("messages notify the other side once per conversation until read, without the message text", async () => {
+    const id = await publishedListing();
+    await db.delete(N());
+    current = users.buyer;
+    const first = await engagement.contactSeller(id, "Secret question about the price");
+    if (!first.ok) throw new Error(first.error);
+    current = users.buyer;
+    await engagement.sendMessage(first.data.conversationId, "Second message");
+    let rows = (await mine(users.seller.id)).filter((r) => r.kind === "message");
+    expect(rows).toHaveLength(1);
+    expect(JSON.stringify(rows[0].data)).not.toContain("Secret question");
+    // Opening the thread marks it read; the next message creates a fresh unread item.
+    await queries.conversationThread(users.seller.id, first.data.conversationId);
+    rows = (await mine(users.seller.id)).filter((r) => r.kind === "message");
+    expect(rows.every((r) => r.readAt)).toBe(true);
+    current = users.seller;
+    await engagement.sendMessage(first.data.conversationId, "Reply from seller");
+    expect((await mine(users.buyer.id)).filter((r) => r.kind === "message" && !r.readAt)).toHaveLength(1);
+  });
+
+  it("people can only open and mark their own notifications", async () => {
+    const [n] = (await mine(users.buyer.id)).filter((r) => !r.readAt);
+    current = users.other;
+    const fd = new FormData();
+    fd.set("id", n.id);
+    fd.set("locale", "ar");
+    await notif.openNotification(fd).catch(() => {}); // redirects
+    const [still] = await db.select().from(N()).where(eq(N().id, n.id));
+    expect(still.readAt).toBeNull();
+    current = users.buyer;
+    let target = "";
+    await notif.openNotification(fd).catch((e: { digest?: string }) => { target = String(e?.digest ?? ""); });
+    expect(target).toContain("/ar/account/messages/");
+    const [read] = await db.select().from(N()).where(eq(N().id, n.id));
+    expect(read.readAt).not.toBeNull();
+    current = users.other;
+    expect((await notif.markAllNotificationsRead()).ok).toBe(true);
+    current = null;
+    expect((await notif.markAllNotificationsRead()).ok).toBe(false);
   });
 });
 

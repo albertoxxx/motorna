@@ -315,6 +315,8 @@ describe("changes requested, rejection and resubmission", () => {
     let [row] = await db.select().from(schema.serviceCenters).where(eq(schema.serviceCenters.id, c.id));
     expect(row.status).toBe("changes_requested");
     expect(row.statusReason).toContain("clearer tax card");
+    const inApp = await db.select().from(schema.notifications).where(eq(schema.notifications.userId, extra.id));
+    expect(inApp.some((n) => n.kind === "center_status" && n.data.action === "requestChanges" && n.data.reason?.includes("clearer tax card"))).toBe(true);
     const notice = sent.at(-1)!;
     expect(notice.text).toContain("clearer tax card");
     expect(notice.text).toContain(`/center/${c.slug}`);

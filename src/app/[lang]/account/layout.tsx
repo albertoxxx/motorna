@@ -7,10 +7,11 @@ export default async function AccountLayout({ children, params }: LayoutProps<"/
   await requireUser(locale, `/${locale}/account/listings`);
   return (
     <div className="container-page py-8">
-      <div className="grid gap-8 lg:grid-cols-[13rem_1fr]">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[13rem_1fr]">
         <AccountNav
           locale={locale}
           links={[
+            { href: "/account/notifications", label: dict.nav.notifications },
             { href: "/account/listings", label: dict.nav.myListings },
             { href: "/account/favorites", label: dict.nav.favorites },
             { href: "/account/messages", label: dict.nav.messages },
