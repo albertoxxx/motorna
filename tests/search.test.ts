@@ -78,6 +78,11 @@ describe("search filters hit the database", () => {
     [{ body: "suv" }, 2],
     [{ city: "cairo" }, 2],
     [{ make: "kia", condition: "used" }, 0],
+    // Combinations
+    [{ make: "toyota", priceMax: "500000", yearMax: "2016", transmission: "manual", fuel: "petrol", body: "sedan", city: "alexandria", condition: "used", mileageMin: "100000" }, 1],
+    [{ fuel: "electric", body: "suv", condition: "new", priceMin: "1000000", yearMin: "2024", mileageMax: "1000", city: "cairo" }, 1],
+    [{ make: "toyota", transmission: "automatic", city: "alexandria" }, 0],
+    [{ priceMin: "700000", priceMax: "2000000", transmission: "automatic", mileageMax: "1000" }, 2],
   ])("%o → %i result(s)", async (params, n) => {
     expect(await search(params as Record<string, string>)).toHaveLength(n);
   });
@@ -91,6 +96,12 @@ describe("search filters hit the database", () => {
     expect(km).toEqual([...km].sort((a, b) => a - b));
     const yr = (await search({ sort: "year_desc" })).map((r) => r.year);
     expect(yr).toEqual([...yr].sort((a, b) => b - a));
+  });
+
+  it("result count matches items and reversed ranges are normalised", async () => {
+    const res = await searchListings(parseSearchParams({ q: tag, priceMin: "2000000", priceMax: "700000" }));
+    expect(res.total).toBe(res.items.length);
+    expect(res.items.map((i) => i.priceEgp).every((p) => p >= 700000 && p <= 2000000)).toBe(true);
   });
 
   it("keyword search matches make/model names in Arabic and English", async () => {

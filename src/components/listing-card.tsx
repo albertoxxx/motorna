@@ -5,6 +5,7 @@ import type { Dictionary } from "@/i18n/dictionaries/ar";
 import type { ListingCardData } from "@/server/listings";
 import { formatKm, formatPrice } from "@/lib/format";
 import { FavoriteButton } from "./favorite-button";
+import { SafeImg } from "./safe-img";
 
 export function ListingCard({
   item,
@@ -31,23 +32,21 @@ export function ListingCard({
     <article className="group relative flex flex-row overflow-hidden rounded-[var(--radius-lg)] border border-line bg-surface transition-colors hover:border-line-strong sm:flex-col">
       {/* Phones: compact row (photo beside details). From 640px: classic vertical card. */}
       <div className="relative min-h-32 w-[42%] max-w-48 shrink-0 self-stretch overflow-hidden bg-canvas sm:aspect-[4/3] sm:min-h-0 sm:w-auto sm:max-w-none sm:self-auto">
-        {item.coverUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={item.coverUrl}
-            alt={`${make} ${model} ${item.year}`}
-            width={640}
-            height={480}
-            loading={priority ? "eager" : "lazy"}
-            decoding="async"
-            className="absolute inset-0 size-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-          />
-        ) : (
-          <div className="absolute inset-0 grid place-items-center text-ink-3">
-            <ImageIcon className="size-8" aria-hidden />
-            <span className="sr-only">{dict.listing.noPhotos}</span>
-          </div>
-        )}
+        <SafeImg
+          src={item.coverUrl ?? undefined}
+          alt={`${make} ${model} ${item.year}`}
+          width={640}
+          height={480}
+          loading={priority ? "eager" : "lazy"}
+          decoding="async"
+          className="absolute inset-0 size-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+          fallback={
+            <div className="absolute inset-0 grid place-items-center text-ink-3">
+              <ImageIcon className="size-8" aria-hidden />
+              <span className="sr-only">{dict.listing.noPhotos}</span>
+            </div>
+          }
+        />
         {item.status === "sold" && (
           <span className="absolute start-2 top-2 rounded bg-navy-900 px-2 py-1 text-xs font-semibold text-white sm:start-3 sm:top-3">{dict.listing.soldBadge}</span>
         )}

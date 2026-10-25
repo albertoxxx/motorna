@@ -70,6 +70,7 @@ const ar = {
     notProvided: "لم يُذكر",
   },
   enums: {
+    color: { white: "أبيض", black: "أسود", silver: "فضي", gray: "رمادي", red: "أحمر", blue: "أزرق", green: "أخضر", beige: "بيج", brown: "بني", gold: "ذهبي", orange: "برتقالي", yellow: "أصفر", burgundy: "نبيتي" },
     condition: { new: "جديدة", used: "مستعملة" },
     transmission: { automatic: "أوتوماتيك", manual: "مانيوال" },
     fuel: { petrol: "بنزين", diesel: "ديزل", hybrid: "هايبرد", electric: "كهرباء", natural_gas: "غاز طبيعي" },
@@ -199,6 +200,7 @@ const ar = {
     },
   },
   listing: {
+    backToResults: "رجوع للنتايج",
     save: "حفظ",
     saved: "محفوظة",
     saveSignIn: "سجّل الدخول عشان تحفظ العربية",
@@ -285,6 +287,10 @@ const ar = {
     soldBadge: "مباعة",
   },
   sell: {
+    previewTitle: "كده الإعلان هيظهر للمشترين:",
+    colorOther: "لون تاني",
+    colorOtherLabel: "اكتب اللون",
+    colorLegacyHint: "اللون ده مكتوب بإيدك. لو هو واحد من الألوان اللي فوق، اختاره من القائمة.",
     prepTitle: "قبل ما تبدأ، جهّز:",
     prepItems: ["3 صور على الأقل، والأفضل 8: قدام، وورا، والجنبين، والداخل، والعداد، والموتور", "رقم العداد الحالي", "السعر اللي عايزه، وهل قابل للتفاوض", "أي عيوب أو دهانات تعرفها (بتوفّر وقتك ووقت المشتري)"],
     prepNote: "الإعلان مجاني. بعد الإرسال مشرف بيراجعه قبل النشر، وتقدر تحفظ مسودة في أي خطوة وتكمّل بعدين.",
@@ -357,6 +363,7 @@ const ar = {
     phoneHint: "مش هيظهر غير للمستخدمين المسجلين لو فعّلت الإظهار من ملفك الشخصي.",
   },
   account: {
+    fixAndResubmit: "عدّله وابعته تاني",
     title: "حسابي",
     myListings: "إعلاناتي",
     noListingsTitle: "معندكش إعلانات لسه",

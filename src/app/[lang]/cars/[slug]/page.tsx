@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { isColorKey } from "@/lib/validation";
+import { BackToResults } from "@/components/back-to-results";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CalendarDays, Gauge, Settings2, Fuel, MapPin, ShieldAlert, UserRound, Pencil, MessageSquare } from "lucide-react";
@@ -125,6 +127,7 @@ export default async function ListingPage({ params }: PageProps<"/[lang]/cars/[s
       )}
       {jsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />}
 
+      <div className="mb-2"><BackToResults locale={locale} label={L.backToResults} /></div>
       <nav aria-label="Breadcrumb" className="mb-4 text-sm text-ink-3">
         <ol className="flex flex-wrap items-center gap-1.5">
           <li><Link href={`/${locale}/cars`} className="hover:text-ink">{dict.nav.browse}</Link></li>
@@ -165,7 +168,7 @@ export default async function ListingPage({ params }: PageProps<"/[lang]/cars/[s
               <Spec label={L.fuel} value={dict.enums.fuel[l.fuelType]} />
               <Spec label={L.body} value={l.bodyType ? dict.enums.body[l.bodyType] : <span className="text-ink-3">{dict.common.notProvided}</span>} />
               <Spec label={L.engine} value={l.engineCc ? <span className="tabular">{formatNumber(l.engineCc, locale)} {L.cc}</span> : <span className="text-ink-3">{dict.common.notProvided}</span>} />
-              <Spec label={L.color} value={l.color ?? <span className="text-ink-3">{dict.common.notProvided}</span>} />
+              <Spec label={L.color} value={l.color ? (isColorKey(l.color) ? dict.enums.color[l.color] : <bdi>{l.color}</bdi>) : <span className="text-ink-3">{dict.common.notProvided}</span>} />
               <Spec label={L.trim} value={l.trim ? <span className="ltr-run">{l.trim}</span> : <span className="text-ink-3">{dict.common.notProvided}</span>} />
               <Spec label={L.location} value={`${city}${l.area ? ` — ${l.area}` : ""}`} />
             </dl>

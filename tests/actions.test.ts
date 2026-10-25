@@ -458,6 +458,25 @@ describe("in-app notifications", () => {
   });
 });
 
+describe("seller dashboard data", () => {
+  it("stores standard colours as keys, keeps hand-typed ones, and shows the rejection reason", async () => {
+    current = users.seller;
+    const r = await listings.saveListing(null, { ...input(), color: "white" }, "draft");
+    if (!r.ok) throw new Error(r.error);
+    const [row] = await db.select({ color: schema.listings.color }).from(schema.listings).where(eq(schema.listings.id, r.data.id));
+    expect(row.color).toBe("white");
+    const legacy = await listings.saveListing(r.data.id, { ...input(), color: "لؤلؤي" }, "draft");
+    expect(legacy.ok).toBe(true);
+    await addImages(r.data.id, 3);
+    await listings.changeListingStatus(r.data.id, "submit");
+    current = users.admin;
+    await admin.moderateListing(r.data.id, "reject", "Photos are too dark to judge the paint");
+    const { myListings } = await import("@/server/listings");
+    const mine = await myListings(users.seller.id);
+    expect(mine.find((x) => x.id === r.data.id)?.rejectionReason).toBe("Photos are too dark to judge the paint");
+  });
+});
+
 describe("seller phone consent", () => {
   const getListingBySlug = import("@/server/listings").then((m) => m.getListingBySlug);
   it("is off by default and enforced server-side; messaging still works", async () => {

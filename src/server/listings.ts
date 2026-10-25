@@ -312,10 +312,17 @@ export async function countSellerActive(sellerId: string) {
 }
 
 export async function myListings(userId: string) {
-  const rows = await cardQuery()
-    .where(and(eq(L.sellerId, userId), isNull(L.deletedAt)))
-    .orderBy(desc(L.updatedAt));
-  return rows.map(toCard);
+  const [rows, reasons] = await Promise.all([
+    cardQuery()
+      .where(and(eq(L.sellerId, userId), isNull(L.deletedAt)))
+      .orderBy(desc(L.updatedAt)),
+    db
+      .select({ id: L.id, reason: L.rejectionReason })
+      .from(L)
+      .where(and(eq(L.sellerId, userId), isNull(L.deletedAt), eq(L.status, "rejected"))),
+  ]);
+  const byId = new Map(reasons.map((r) => [r.id, r.reason]));
+  return rows.map((r) => ({ ...toCard(r), rejectionReason: byId.get(r.id) ?? null }));
 }
 
 export async function listingsByIds(ids: string[]) {

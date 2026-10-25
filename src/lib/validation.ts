@@ -36,6 +36,11 @@ export const CONDITIONS = ["new", "used"] as const;
 export const TRANSMISSIONS = ["automatic", "manual"] as const;
 export const FUELS = ["petrol", "diesel", "hybrid", "electric", "natural_gas"] as const;
 export const BODIES = ["sedan", "hatchback", "suv", "crossover", "pickup", "van", "coupe", "convertible", "wagon"] as const;
+/** Standard colours (stored as these keys). Anything else is kept as the seller typed it. */
+export const COLORS = ["white", "black", "silver", "gray", "red", "blue", "green", "beige", "brown", "gold", "orange", "yellow", "burgundy"] as const;
+export type ColorKey = (typeof COLORS)[number];
+export const isColorKey = (v: string | null | undefined): v is ColorKey => !!v && (COLORS as readonly string[]).includes(v);
+
 export const REPORT_REASONS = ["scam", "wrong_info", "duplicate", "sold", "offensive", "other"] as const;
 
 export const MIN_PRICE = 10_000;

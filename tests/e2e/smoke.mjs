@@ -99,6 +99,7 @@ try {
   // Step 2: specifications
   await S.page.waitForSelector("#engineCc");
   await S.page.type("#engineCc", "1600");
+  await S.page.select("#color", "white");
   await clickText(S.page, "Continue");
   // Step 3: mileage & condition
   await S.page.waitForSelector("#mileageKm");
@@ -141,6 +142,7 @@ try {
   await clickText(S.page, "Continue");
   await S.page.waitForFunction(() => document.body.innerText.includes("Small scratch on rear bumper"));
   ok("review step shows known defects");
+  assert((await S.page.evaluate(() => document.body.innerText)).includes("This is how buyers will see your listing"), "review step shows a listing-card preview before submission");
   await clickText(S.page, "Submit for review");
   await S.page.waitForFunction(() => location.pathname.endsWith("/en/account/listings") && document.body.innerText.includes("In review"), { timeout: 60000 });
   assert(S.page.url().endsWith("/en/account/listings"), "submitted for review");
@@ -171,10 +173,15 @@ try {
   await signUp(B.page, buyer);
   await go(B.page, `/en/cars?q=${trim}`);
   assert((await B.page.$$eval("article", (a) => a.length)) === 1, "keyword search finds exactly the new listing");
+  // Open the card from the results, then go back to the same search
+  await Promise.all([B.page.waitForNavigation({ waitUntil: "networkidle0" }), B.page.click("article h3 a")]);
+  await Promise.all([B.page.waitForNavigation({ waitUntil: "networkidle0" }), clickText(B.page, "Back to results")]);
+  assert(B.page.url().includes(`q=${trim}`), "back to results returns to the same filtered search");
   await go(B.page, slug);
   await shot(B.page, "e2e-detail-en");
   const detailText = await B.page.evaluate(() => document.body.innerText);
   assert(detailText.includes("Small scratch on rear bumper"), "known defects shown on the listing page");
+  assert(/Colour|Color/.test(detailText) && detailText.includes("White"), "standard colour shows its label on the listing page");
   assert(detailText.includes("Listing review") && detailText.includes("Reviewed") && detailText.includes("Not verified") && detailText.includes("Not inspected"), "trust panel shows separate statuses, only review marked done");
   assert(!!(await B.page.$$eval("button", (bs) => bs.some((b) => b.textContent.trim() === "Share"))), "share action present");
   await clickText(B.page, "Save");

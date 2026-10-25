@@ -78,6 +78,12 @@ export function Gallery({ images, alt, labels }: { images: Img[]; alt: string; l
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
+          key={current.id}
+          onError={(e) => {
+            // Fall back to the thumbnail, then hide, so a missing file never shows a broken icon.
+            const el = e.currentTarget;
+            if (el.dataset.fallback !== "1") { el.dataset.fallback = "1"; el.src = current.thumbUrl; } else { el.style.visibility = "hidden"; }
+          }}
           src={current.url}
           alt={`${alt} — ${fmt(labels.photoOf, i + 1, n)}`}
           width={current.width}
@@ -107,7 +113,7 @@ export function Gallery({ images, alt, labels }: { images: Img[]; alt: string; l
               className={cn("h-16 w-24 shrink-0 overflow-hidden rounded-[var(--radius-sm)] border-2", k === i ? "border-brand-600" : "border-transparent opacity-75 hover:opacity-100")}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={img.thumbUrl} alt="" className="size-full object-cover" loading="lazy" />
+              <img src={img.thumbUrl} alt="" className="size-full object-cover" loading="lazy" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />
             </button>
           ))}
         </div>

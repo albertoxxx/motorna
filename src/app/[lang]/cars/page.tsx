@@ -10,6 +10,8 @@ import { ListingCard } from "@/components/listing-card";
 import { FiltersButton, FiltersPanel, SortSelect } from "@/components/filters";
 import { FilterChips } from "@/components/filter-chips";
 import { Pagination } from "@/components/pagination";
+import { Suspense } from "react";
+import { RememberResults } from "@/components/back-to-results";
 import { EmptyState } from "@/components/ui/states";
 import { ButtonLink } from "@/components/ui/button";
 import { formatNumber } from "@/lib/format";
@@ -60,6 +62,7 @@ export default async function CarsPage({ params, searchParams }: PageProps<"/[la
 
   return (
     <div className="container-page py-6 sm:py-8">
+      <Suspense><RememberResults /></Suspense>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold sm:text-3xl">{heading}</h1>

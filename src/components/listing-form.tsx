@@ -7,7 +7,7 @@ import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/dictionaries/ar";
 import { saveListing, deleteImage, reorderImages } from "@/server/actions/listings";
 import type { ValidationKey } from "@/lib/validation";
-import { BODIES, CONDITIONS, FUELS, TRANSMISSIONS, looksLikeEngineSize, maxYear, MIN_YEAR } from "@/lib/validation";
+import { BODIES, COLORS, CONDITIONS, FUELS, TRANSMISSIONS, isColorKey, looksLikeEngineSize, maxYear, MIN_YEAR } from "@/lib/validation";
 import { Button } from "@/components/ui/button";
 import { Checkbox, Field, Input, Select, Textarea } from "@/components/ui/field";
 import { Notice } from "@/components/ui/states";
@@ -99,6 +99,9 @@ export function ListingForm({
     showPhone: false, sellerPhone: profilePhone,
     ...initial,
   });
+  // Standard colours are stored as keys; anything else (including older hand-typed values) shows under "other".
+  const initialColorWasLegacy = !!initial.color && !isColorKey(initial.color);
+  const [colorOther, setColorOther] = useState(initialColorWasLegacy);
   const name = (r: { nameAr: string; nameEn: string }) => (locale === "ar" ? r.nameAr : r.nameEn);
   const makeModels = useMemo(() => models.filter((m) => String(m.makeId) === v.makeId), [models, v.makeId]);
   const years = Array.from({ length: maxYear() - MIN_YEAR + 1 }, (_, i) => maxYear() - i);
@@ -338,8 +341,20 @@ export function ListingForm({
               <Input id="engineCc" inputMode="numeric" className="tabular" value={v.engineCc} invalid={!!errors.engineCc} onChange={(e) => set("engineCc", e.target.value)} />
             </Field>
             <Field label={S.color} htmlFor="color" optional optionalLabel={dict.common.optional}>
-              <Input id="color" value={v.color} maxLength={30} onChange={(e) => set("color", e.target.value)} />
+              <Select id="color" value={colorOther ? "__other" : v.color} onChange={(e) => {
+                if (e.target.value === "__other") { setColorOther(true); set("color", ""); }
+                else { setColorOther(false); set("color", e.target.value); }
+              }}>
+                <option value="">—</option>
+                {COLORS.map((c) => <option key={c} value={c}>{dict.enums.color[c]}</option>)}
+                <option value="__other">{S.colorOther}</option>
+              </Select>
             </Field>
+            {colorOther && (
+              <Field label={S.colorOtherLabel} htmlFor="colorOther" hint={v.color && initialColorWasLegacy ? S.colorLegacyHint : undefined} optional optionalLabel={dict.common.optional}>
+                <Input id="colorOther" value={v.color} maxLength={30} dir="auto" onChange={(e) => set("color", e.target.value)} />
+              </Field>
+            )}
           </div>
         )}
 
@@ -439,18 +454,30 @@ export function ListingForm({
 
         {step === REVIEW_STEP && (
           <div className="flex flex-col gap-5">
-            <div className="flex gap-4">
-              {images[0] && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={images[0].thumbUrl} alt="" className="hidden h-24 w-32 rounded-[var(--radius-md)] object-cover sm:block" />
-              )}
-              <div className="min-w-0">
-                <h2 className="text-xl font-bold"><bdi>{v.title}</bdi></h2>
-                <p className="tabular mt-1 text-lg font-semibold text-navy-900">{v.priceEgp && formatPrice(Number(v.priceEgp.replace(/\D/g, "")), locale)}</p>
-                <p className="mt-1 text-sm text-ink-2">
-                  {[mk && name(mk), v.modelId === "other" ? v.modelOther : md && name(md), v.year, v.mileageKm && formatKm(Number(v.mileageKm.replace(/\D/g, "")), locale), city && name(city)].filter(Boolean).join("، ")}
-                </p>
+            <div>
+              <p className="mb-2 text-sm font-semibold text-ink-2">{S.previewTitle}</p>
+              {/* Preview built from the same fields buyers will see on the listing card. */}
+              <div className="flex overflow-hidden rounded-[var(--radius-lg)] border border-line bg-surface sm:max-w-sm sm:flex-col">
+                <div className="relative w-[42%] shrink-0 bg-canvas sm:aspect-[4/3] sm:w-auto">
+                  {images[0] ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={images[0].thumbUrl} alt="" className="absolute inset-0 size-full object-cover" />
+                  ) : (
+                    <div className="absolute inset-0 grid place-items-center text-ink-3"><ImagePlus className="size-7" aria-hidden /></div>
+                  )}
+                </div>
+                <div className="flex min-w-0 flex-1 flex-col gap-1.5 p-3 sm:p-4">
+                  <p className="line-clamp-2 font-semibold leading-snug">
+                    {mk && name(mk)} {v.modelId === "other" ? v.modelOther : md && name(md)} <span className="tabular text-ink-2">{v.year}</span>
+                  </p>
+                  {v.trim && <p className="truncate text-sm text-ink-3"><bdi>{v.trim}</bdi></p>}
+                  <p className="tabular text-lg font-bold text-navy-900">{v.priceEgp && formatPrice(Number(v.priceEgp.replace(/\D/g, "")), locale)}</p>
+                  <p className="text-xs text-ink-2">
+                    {[v.mileageKm && formatKm(Number(v.mileageKm.replace(/\D/g, "")), locale), dict.enums.transmission[v.transmission as keyof typeof dict.enums.transmission], dict.enums.fuel[v.fuelType as keyof typeof dict.enums.fuel], city && name(city)].filter(Boolean).join(" · ")}
+                  </p>
+                </div>
               </div>
+              <p className="mt-3 text-sm font-medium"><bdi>{v.title}</bdi></p>
             </div>
             <dl className="grid gap-x-6 gap-y-2 rounded-[var(--radius-md)] bg-canvas p-4 text-sm sm:grid-cols-2">
               <div className="flex justify-between gap-3"><dt className="text-ink-3">{S.transmission}</dt><dd>{dict.enums.transmission[v.transmission as keyof typeof dict.enums.transmission]}</dd></div>

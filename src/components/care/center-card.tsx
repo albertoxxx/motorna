@@ -3,6 +3,7 @@ import { ArrowUpRight, BadgeCheck, Clock, MapPin, Wrench } from "lucide-react";
 import type { Locale } from "@/i18n/config";
 import type { CareDictionary } from "@/i18n/dictionaries/care-ar";
 import { formatDate } from "@/lib/format";
+import { SafeImg } from "@/components/safe-img";
 
 export type CenterCardData = {
   slug: string;
@@ -27,12 +28,16 @@ export function CenterCard({ c, locale, K }: { c: CenterCardData; locale: Locale
   return (
     <article className="group relative flex h-full flex-col overflow-hidden rounded-[var(--radius-lg)] border border-line bg-surface transition-colors hover:border-line-strong">
       <div className="relative aspect-[16/9] bg-canvas">
-        {c.coverUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={c.coverUrl} alt="" loading="lazy" decoding="async" width={640} height={360} className="absolute inset-0 size-full object-cover" />
-        ) : (
-          <div className="absolute inset-0 grid place-items-center text-ink-3"><Wrench className="size-8" aria-hidden /></div>
-        )}
+        <SafeImg
+          src={c.coverUrl ?? undefined}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          width={640}
+          height={360}
+          className="absolute inset-0 size-full object-cover"
+          fallback={<div className="absolute inset-0 grid place-items-center text-ink-3"><Wrench className="size-8" aria-hidden /></div>}
+        />
         <span className="absolute start-3 top-3 rounded-md bg-surface/95 px-2 py-1 text-xs font-semibold text-navy-900 shadow-sm">{K.providers[c.category].short}</span>
       </div>
       <div className="flex flex-1 flex-col p-5">

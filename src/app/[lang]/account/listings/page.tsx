@@ -8,6 +8,7 @@ import { Badge, statusTone } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/states";
 import { MyListingActions } from "@/components/my-listing-actions";
 import { formatKm, formatPrice } from "@/lib/format";
+import { t } from "@/i18n/t";
 
 export const metadata = { robots: { index: false } };
 
@@ -40,6 +41,15 @@ export default async function MyListingsPage({ params }: PageProps<"/[lang]/acco
                 <p className="tabular text-sm text-ink-2">
                   {formatPrice(l.priceEgp, locale)} — {formatKm(l.mileageKm, locale)}
                 </p>
+                {l.status === "rejected" && (
+                  <p className="rounded-[var(--radius-md)] bg-danger-50 px-3 py-2 text-sm text-danger-700">
+                    {t(dict.listing.statusNotice.rejected, { reason: l.rejectionReason ?? "—" })}
+                    {" "}<Link href={`/${locale}/account/listings/${l.id}/edit`} className="font-semibold underline">{dict.account.fixAndResubmit}</Link>
+                  </p>
+                )}
+                {(l.status === "pending_review" || l.status === "draft") && (
+                  <p className="text-sm text-ink-3">{dict.listing.statusNotice[l.status]}</p>
+                )}
                 <div className="mt-auto pt-1">
                   <MyListingActions id={l.id} status={l.status} editHref={`/${locale}/account/listings/${l.id}/edit`} dict={{ account: dict.account, common: dict.common, errors: dict.errors }} />
                 </div>

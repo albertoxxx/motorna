@@ -71,6 +71,7 @@ const en: Dictionary = {
     notProvided: "Not provided",
   },
   enums: {
+    color: { white: "White", black: "Black", silver: "Silver", gray: "Gray", red: "Red", blue: "Blue", green: "Green", beige: "Beige", brown: "Brown", gold: "Gold", orange: "Orange", yellow: "Yellow", burgundy: "Burgundy" },
     condition: { new: "New", used: "Used" },
     transmission: { automatic: "Automatic", manual: "Manual" },
     fuel: { petrol: "Petrol", diesel: "Diesel", hybrid: "Hybrid", electric: "Electric", natural_gas: "Natural gas" },
@@ -200,6 +201,7 @@ const en: Dictionary = {
     },
   },
   listing: {
+    backToResults: "Back to results",
     save: "Save",
     saved: "Saved",
     saveSignIn: "Sign in to save this car",
@@ -286,6 +288,10 @@ const en: Dictionary = {
     soldBadge: "Sold",
   },
   sell: {
+    previewTitle: "This is how buyers will see your listing:",
+    colorOther: "Other colour",
+    colorOtherLabel: "Type the colour",
+    colorLegacyHint: "This colour was typed in by hand. If it’s one of the colours above, pick it from the list.",
     prepTitle: "Before you start, have ready:",
     prepItems: ["At least 3 photos, ideally 8: front, back, both sides, interior, odometer, engine", "The current mileage", "Your asking price, and whether it’s negotiable", "Any defects or repaint you know of (saves you and the buyer time)"],
     prepNote: "Listing is free. After you submit, a moderator reviews it before it goes live. You can save a draft at any step and finish later.",
@@ -358,6 +364,7 @@ const en: Dictionary = {
     phoneHint: "Only shown to signed-in users if you enable it in your profile.",
   },
   account: {
+    fixAndResubmit: "Fix and resubmit",
     title: "My account",
     myListings: "My listings",
     noListingsTitle: "You have no listings yet",
