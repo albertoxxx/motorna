@@ -1,3 +1,4 @@
+import bookingAr from "./booking-ar";
 import careAr from "./care-ar";
 
 const ar = {
@@ -537,6 +538,16 @@ const ar = {
     },
   },
   errors: {
+    bookingTransition: "العملية دي مش متاحة في حالة الحجز الحالية.",
+    bookingTooLate: "فات ميعاد التعديل حسب سياسة الإلغاء. تقدر تلغي الحجز أو تكلم المركز.",
+    bookingTooEarly: "لسه بدري على الخطوة دي.",
+    bookingReasonRequired: "اكتب السبب (3 حروف على الأقل).",
+    bookingWindowClosed: "فترة الإبلاغ عن مشكلة في الحجز ده خلصت. تواصل مع الدعم.",
+    slotTaken: "الميعاد ده مش متاح. اختار ميعاد تاني.",
+    bookingStale: "الحجز اتغير من شوية. حدّث الصفحة وجرّب تاني.",
+    bookingUnavailable: "الحجز أونلاين مش متاح للمركز ده دلوقتي.",
+    agreementOverlap: "فيه اتفاقية سارية بتغطي نفس الخدمات. أنهيها الأول.",
+    nothingToSettle: "مفيش عمولات مؤكدة ومش مسوّاة في الفترة دي.",
     applicationIncomplete: "الطلب ناقص. كمّل قائمة الطلب الأول.",
     documentsUnavailable: "رفع المستندات مش متاح دلوقتي. جرّب تاني بعدين.",
     centerPending: "عندك طلب مركز لسه تحت المراجعة.",
@@ -562,6 +573,8 @@ const ar = {
     invalidTransition: "العملية دي مش متاحة في حالة الإعلان الحالية.",
   },
   validation: {
+    servicePriceRange: "الحد الأعلى لازم يكون أكبر من أو يساوي السعر المبدئي",
+    closureRange: "النهاية لازم تكون بعد البداية",
     providerCategory: "اختار نوع المركز",
     mapLink: "الرابط مافيهوش مكان واضح جوه مصر. انسخ رابط المكان أو الإحداثيات من خرائط جوجل.",
     equipmentDetails: "التفاصيل لحد 200 حرف",
@@ -593,6 +606,7 @@ const ar = {
     newUsedMileage: "العربية الجديدة لازم عدادها أقل من ١٠٠٠ كم",
   },
   care: careAr,
+  booking: bookingAr,
 };
 
 export default ar;

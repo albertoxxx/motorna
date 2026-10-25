@@ -4,7 +4,28 @@ import { db, schema } from "@/db";
 
 const N = schema.notifications;
 
-export const NOTIFICATION_KINDS = ["listing_approved", "listing_rejected", "listing_taken_down", "message", "center_status"] as const;
+export const BOOKING_NOTIFICATION_KINDS = [
+  "booking_new",
+  "booking_confirmed",
+  "booking_declined",
+  "booking_alternative",
+  "booking_alternative_accepted",
+  "booking_alternative_declined",
+  "booking_question",
+  "booking_reply",
+  "booking_rescheduled",
+  "booking_cancelled",
+  "booking_cancelled_provider",
+  "booking_completed",
+  "booking_no_show",
+  "booking_reminder",
+  "booking_confirm_reminder",
+  "booking_expired",
+  "booking_dispute",
+  "booking_dispute_resolved",
+  "booking_review",
+] as const;
+export const NOTIFICATION_KINDS = ["listing_approved", "listing_rejected", "listing_taken_down", "message", "center_status", ...BOOKING_NOTIFICATION_KINDS] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 type Tx = Pick<typeof db, "insert">;

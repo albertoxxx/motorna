@@ -261,22 +261,37 @@ export const centerApplicationSchema = centerProfileSchema.extend({
   acceptTerms: z.literal(true, { error: "acceptTerms" }),
 });
 
+const egpField = z.preprocess(
+  (v) => (v === "" || v == null ? undefined : typeof v === "string" ? Number(v.replace(/[,\s]/g, "")) : v),
+  z.number({ error: "servicePrice" }).int({ error: "servicePrice" }).min(1, { error: "servicePrice" }).max(1_000_000, { error: "servicePrice" }).optional(),
+);
+
+/** fixed = exact price; estimate = "from" price with an optional upper bound; quote = priced after inspection. */
 export const centerServiceSchema = z
   .object({
     category: z.enum(CARE_CATEGORIES, { error: "required" }),
     nameAr: text(2, 80, "serviceName"),
     nameEn: text(2, 80, "serviceName"),
-    priceMode: z.enum(["fixed", "quote"], { error: "required" }),
-    priceEgp: z.preprocess(
-      (v) => (v === "" || v == null ? undefined : typeof v === "string" ? Number(v.replace(/[,\s]/g, "")) : v),
-      z.number({ error: "servicePrice" }).int({ error: "servicePrice" }).min(1, { error: "servicePrice" }).max(1_000_000, { error: "servicePrice" }).optional(),
-    ),
+    priceMode: z.enum(["fixed", "estimate", "quote"], { error: "required" }),
+    priceEgp: egpField,
+    priceMaxEgp: egpField,
     durationMin: z.coerce.number({ error: "serviceDuration" }).int().min(10, { error: "serviceDuration" }).max(1440, { error: "serviceDuration" }),
+    bookable: z.preprocess((v) => v === true || v === "true" || v === "on" || v === undefined, z.boolean()).optional(),
   })
   .superRefine((v, ctx) => {
-    if (v.priceMode === "fixed" && v.priceEgp == null) ctx.addIssue({ code: "custom", path: ["priceEgp"], message: "servicePrice" });
+    if ((v.priceMode === "fixed" || v.priceMode === "estimate") && v.priceEgp == null) ctx.addIssue({ code: "custom", path: ["priceEgp"], message: "servicePrice" });
+    if (v.priceMode === "estimate" && v.priceMaxEgp != null && v.priceEgp != null && v.priceMaxEgp < v.priceEgp) ctx.addIssue({ code: "custom", path: ["priceMaxEgp"], message: "servicePriceRange" });
   })
-  .transform((v) => ({ ...v, priceEgp: v.priceMode === "quote" ? null : v.priceEgp! }));
+  .transform((v) => ({
+    category: v.category,
+    nameAr: v.nameAr,
+    nameEn: v.nameEn,
+    priceMode: v.priceMode,
+    priceEgp: v.priceMode === "quote" ? null : v.priceEgp!,
+    priceMaxEgp: v.priceMode === "estimate" ? (v.priceMaxEgp ?? null) : null,
+    durationMin: v.durationMin,
+    bookable: v.bookable ?? true,
+  }));
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 export const centerHoursSchema = z

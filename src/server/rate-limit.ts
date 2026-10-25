@@ -15,6 +15,8 @@ export const RULES = {
   centerApply: { limit: 3, windowSec: 60 * 60 * 24 },
   centerEdit: { limit: 200, windowSec: 60 * 60 },
   credentialUpload: { limit: 30, windowSec: 60 * 60 },
+  bookingCreate: { limit: 10, windowSec: 60 * 60 * 24 },
+  bookingAction: { limit: 120, windowSec: 60 * 60 },
 } satisfies Record<string, RateRule>;
 
 /**

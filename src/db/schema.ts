@@ -460,7 +460,8 @@ export const careCategory = pgEnum("care_category", [
   "bodywork",
   "other",
 ]);
-export const priceMode = pgEnum("price_mode", ["fixed", "quote"]);
+/** fixed = exact price; estimate = "from" price (optional upper bound); quote = priced after inspection. */
+export const priceMode = pgEnum("price_mode", ["fixed", "quote", "estimate"]);
 export const credentialKind = pgEnum("credential_kind", ["commercial_register", "tax_card", "brand_authorization", "other", "sample_report"]);
 export const reviewState = pgEnum("review_state", ["pending", "accepted", "rejected"]);
 /** What kind of provider this is; decides which verification criteria apply. */
@@ -581,15 +582,19 @@ export const centerServices = pgTable(
     nameEn: text().notNull(),
     priceMode: priceMode().notNull(),
     priceEgp: integer(),
+    /** Upper bound for an estimate (optional). */
+    priceMaxEgp: integer(),
     durationMin: smallint().notNull().default(60),
     active: boolean().notNull().default(true),
+    /** Whether customers can book this service online (when the center accepts bookings). */
+    bookable: boolean().notNull().default(true),
     ...timestamps,
   },
   (t) => [
     index("center_services_center_idx").on(t.centerId),
     check(
-      "center_services_price",
-      sql`(${t.priceMode} = 'quote' AND ${t.priceEgp} IS NULL) OR (${t.priceMode} = 'fixed' AND ${t.priceEgp} BETWEEN 1 AND 1000000)`,
+      "center_services_price_v2",
+      sql`(${t.priceMode}::text = 'quote' AND ${t.priceEgp} IS NULL AND ${t.priceMaxEgp} IS NULL) OR (${t.priceMode}::text = 'fixed' AND ${t.priceEgp} BETWEEN 1 AND 1000000 AND ${t.priceMaxEgp} IS NULL) OR (${t.priceMode}::text = 'estimate' AND ${t.priceEgp} BETWEEN 1 AND 1000000 AND (${t.priceMaxEgp} IS NULL OR ${t.priceMaxEgp} BETWEEN ${t.priceEgp} AND 1000000))`,
     ),
     check("center_services_duration", sql`${t.durationMin} BETWEEN 10 AND 1440`),
   ],
@@ -741,3 +746,424 @@ export type CenterStaffRole = (typeof centerStaffRole.enumValues)[number];
 export type CareCategory = (typeof careCategory.enumValues)[number];
 export type CredentialKind = (typeof credentialKind.enumValues)[number];
 export type ProviderCategory = (typeof providerCategory.enumValues)[number];
+
+/* ------------------------------------------------------------------ */
+/* MOTORNA Care — bookings and commission (docs/CARE-BOOKING.md)       */
+/* Status changes go through src/lib/booking.ts and are always logged. */
+/* ------------------------------------------------------------------ */
+
+export const bookingStatus = pgEnum("booking_status", [
+  "pending_provider",
+  "alternative_proposed",
+  "awaiting_customer",
+  "confirmed",
+  "checked_in",
+  "completed",
+  "declined",
+  "cancelled_customer",
+  "cancelled_provider",
+  "no_show",
+  "expired",
+  "disputed",
+]);
+export const bookingMode = pgEnum("booking_mode", ["slots", "manual"]);
+export const timeOptionKind = pgEnum("time_option_kind", ["requested", "proposed"]);
+export const timeOptionState = pgEnum("time_option_state", ["open", "accepted", "declined", "withdrawn"]);
+export const bookingActorRole = pgEnum("booking_actor_role", ["customer", "provider", "admin", "system"]);
+export const disputeKind = pgEnum("dispute_kind", [
+  "no_show_dispute",
+  "late_cancellation",
+  "service_unavailable",
+  "completion_disagreement",
+  "price_disagreement",
+  "conduct",
+  "support",
+  "other",
+]);
+export const disputeStatus = pgEnum("dispute_status", ["open", "reviewing", "resolved", "dismissed"]);
+export const commissionBasis = pgEnum("commission_basis", ["percent", "fixed"]);
+export const agreementStatus = pgEnum("agreement_status", ["draft", "active", "ended"]);
+export const ledgerStatus = pgEnum("ledger_status", ["pending_verification", "confirmed", "disputed", "payable", "settled", "waived"]);
+export const settlementStatus = pgEnum("settlement_status", ["open", "issued", "settled", "void"]);
+export const settlementSchedule = pgEnum("settlement_schedule", ["monthly", "biweekly"]);
+
+/** One row per center. The admin turns the pilot on; the provider decides whether it is accepting. */
+export const centerBookingSettings = pgTable(
+  "center_booking_settings",
+  {
+    centerId: uuid()
+      .primaryKey()
+      .references(() => serviceCenters.id, { onDelete: "cascade" }),
+    pilotEnabled: boolean().notNull().default(false),
+    pilotEnabledById: text().references(() => users.id, { onDelete: "set null" }),
+    pilotEnabledAt: timestamp({ withTimezone: true }),
+    accepting: boolean().notNull().default(false),
+    mode: bookingMode().notNull().default("manual"),
+    slotIntervalMin: smallint().notNull().default(30),
+    capacity: smallint().notNull().default(1),
+    minNoticeHours: smallint().notNull().default(4),
+    maxAdvanceDays: smallint().notNull().default(30),
+    cancelCutoffHours: smallint().notNull().default(12),
+    policyAr: text().notNull().default(""),
+    policyEn: text().notNull().default(""),
+    ...timestamps,
+  },
+  (t) => [
+    check("cbs_interval", sql`${t.slotIntervalMin} IN (15, 30, 60)`),
+    check("cbs_capacity", sql`${t.capacity} BETWEEN 1 AND 50`),
+    check("cbs_notice", sql`${t.minNoticeHours} BETWEEN 0 AND 168`),
+    check("cbs_advance", sql`${t.maxAdvanceDays} BETWEEN 1 AND 90`),
+    check("cbs_cutoff", sql`${t.cancelCutoffHours} BETWEEN 0 AND 72`),
+    check("cbs_policy_len", sql`char_length(${t.policyAr}) <= 1000 AND char_length(${t.policyEn}) <= 1000`),
+  ],
+);
+
+/** Blackout periods (holidays, maintenance) during which no time can be booked. */
+export const centerClosures = pgTable(
+  "center_closures",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    centerId: uuid()
+      .notNull()
+      .references(() => serviceCenters.id, { onDelete: "cascade" }),
+    startsAt: timestamp({ withTimezone: true }).notNull(),
+    endsAt: timestamp({ withTimezone: true }).notNull(),
+    reason: text(),
+    createdById: text().references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("center_closures_center_idx").on(t.centerId, t.startsAt), check("center_closures_range", sql`${t.endsAt} > ${t.startsAt}`)],
+);
+
+/** A customer's own vehicles. Private to the owner; providers only see the snapshot on a booking. */
+export const customerVehicles = pgTable(
+  "customer_vehicles",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    userId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    makeId: smallint()
+      .notNull()
+      .references(() => vehicleMakes.id),
+    modelId: integer().references(() => vehicleModels.id),
+    year: smallint().notNull(),
+    mileageKm: integer(),
+    nickname: text(),
+    ...timestamps,
+  },
+  (t) => [
+    index("customer_vehicles_user_idx").on(t.userId),
+    check("customer_vehicles_year", sql`${t.year} BETWEEN 1950 AND 2100`),
+    check("customer_vehicles_mileage", sql`${t.mileageKm} IS NULL OR ${t.mileageKm} BETWEEN 0 AND 3000000`),
+  ],
+);
+
+export const bookings = pgTable(
+  "bookings",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    reference: text().notNull().unique(),
+    centerId: uuid()
+      .notNull()
+      .references(() => serviceCenters.id),
+    serviceId: uuid().references(() => centerServices.id, { onDelete: "set null" }),
+    customerId: text()
+      .notNull()
+      .references(() => users.id),
+    vehicleId: uuid().references(() => customerVehicles.id, { onDelete: "set null" }),
+    status: bookingStatus().notNull().default("pending_provider"),
+    mode: bookingMode().notNull(),
+    // Snapshots: what the customer agreed to, even if the provider later edits the service.
+    serviceNameAr: text().notNull(),
+    serviceNameEn: text().notNull(),
+    serviceCategory: careCategory().notNull(),
+    priceMode: priceMode().notNull(),
+    priceEgp: integer(),
+    priceMaxEgp: integer(),
+    durationMin: smallint().notNull(),
+    vehicleMakeId: smallint()
+      .notNull()
+      .references(() => vehicleMakes.id),
+    vehicleModelId: integer().references(() => vehicleModels.id),
+    vehicleModelText: text(),
+    vehicleYear: smallint().notNull(),
+    vehicleMileageKm: integer(),
+    cancelCutoffHours: smallint().notNull(),
+    /** Only set once the provider (or the customer accepting a proposal) confirms a time. */
+    startsAt: timestamp({ withTimezone: true }),
+    endsAt: timestamp({ withTimezone: true }),
+    contactName: text().notNull(),
+    contactPhone: text().notNull(),
+    customerNote: text(),
+    statusReason: text(),
+    lateCancel: boolean().notNull().default(false),
+    /** Generated by the booking form; blocks double submission. */
+    requestKey: text().notNull(),
+    confirmedAt: timestamp({ withTimezone: true }),
+    completedAt: timestamp({ withTimezone: true }),
+    reminderSentAt: timestamp({ withTimezone: true }),
+    /** Status to restore if a dispute is dismissed. */
+    preDisputeStatus: bookingStatus(),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("bookings_request_key_uq").on(t.customerId, t.requestKey),
+    index("bookings_center_idx").on(t.centerId, t.status, t.startsAt),
+    index("bookings_customer_idx").on(t.customerId, t.createdAt),
+    check("bookings_time_range", sql`(${t.startsAt} IS NULL AND ${t.endsAt} IS NULL) OR (${t.endsAt} > ${t.startsAt})`),
+    check(
+      "bookings_confirmed_has_time",
+      sql`${t.status}::text NOT IN ('confirmed', 'checked_in', 'completed', 'no_show') OR ${t.startsAt} IS NOT NULL`,
+    ),
+    check("bookings_note_len", sql`${t.customerNote} IS NULL OR char_length(${t.customerNote}) <= 1000`),
+    check("bookings_reference_format", sql`${t.reference} ~ '^MC-[A-Z0-9]{6,10}$'`),
+  ],
+);
+
+/** Requested (by the customer) and proposed (by the provider) times. Never a confirmed time by itself. */
+export const bookingTimeOptions = pgTable(
+  "booking_time_options",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    bookingId: uuid()
+      .notNull()
+      .references(() => bookings.id, { onDelete: "cascade" }),
+    kind: timeOptionKind().notNull(),
+    round: smallint().notNull().default(1),
+    startsAt: timestamp({ withTimezone: true }).notNull(),
+    endsAt: timestamp({ withTimezone: true }).notNull(),
+    state: timeOptionState().notNull().default("open"),
+    createdById: text().references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("booking_time_options_booking_idx").on(t.bookingId), check("booking_time_options_range", sql`${t.endsAt} > ${t.startsAt}`)],
+);
+
+/** Append-only status history (a trigger blocks UPDATE/DELETE). */
+export const bookingEvents = pgTable(
+  "booking_events",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    bookingId: uuid()
+      .notNull()
+      .references(() => bookings.id, { onDelete: "cascade" }),
+    action: text().notNull(),
+    fromStatus: bookingStatus(),
+    toStatus: bookingStatus().notNull(),
+    actorId: text().references(() => users.id, { onDelete: "set null" }),
+    actorRole: bookingActorRole().notNull(),
+    note: text(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("booking_events_booking_idx").on(t.bookingId, t.createdAt)],
+);
+
+/** Questions and replies tied to one booking (provider "ask", customer "reply"). */
+export const bookingMessages = pgTable(
+  "booking_messages",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    bookingId: uuid()
+      .notNull()
+      .references(() => bookings.id, { onDelete: "cascade" }),
+    authorId: text().references(() => users.id, { onDelete: "set null" }),
+    authorRole: bookingActorRole().notNull(),
+    body: text().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("booking_messages_booking_idx").on(t.bookingId, t.createdAt), check("booking_messages_len", sql`char_length(${t.body}) BETWEEN 1 AND 1000`)],
+);
+
+/** What the provider recorded after the appointment; also the customer's maintenance record. */
+export const serviceCompletions = pgTable(
+  "service_completions",
+  {
+    bookingId: uuid()
+      .primaryKey()
+      .references(() => bookings.id, { onDelete: "cascade" }),
+    attended: boolean().notNull(),
+    serviceCompleted: boolean().notNull(),
+    finalAmountEgp: integer(),
+    workSummary: text(),
+    mileageKm: integer(),
+    recordedById: text().references(() => users.id, { onDelete: "set null" }),
+    recordedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    customerConfirmedAt: timestamp({ withTimezone: true }),
+    /** When the "confirm or report within N days" reminder was sent (once). */
+    confirmReminderSentAt: timestamp({ withTimezone: true }),
+  },
+  (t) => [
+    check("service_completions_amount", sql`${t.finalAmountEgp} IS NULL OR ${t.finalAmountEgp} BETWEEN 0 AND 5000000`),
+    check("service_completions_summary_len", sql`${t.workSummary} IS NULL OR char_length(${t.workSummary}) <= 2000`),
+  ],
+);
+
+/** One review per completed booking. Ratings are kept separate from verification. */
+export const centerReviews = pgTable(
+  "center_reviews",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    bookingId: uuid()
+      .notNull()
+      .unique()
+      .references(() => bookings.id, { onDelete: "cascade" }),
+    centerId: uuid()
+      .notNull()
+      .references(() => serviceCenters.id, { onDelete: "cascade" }),
+    customerId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    rating: smallint().notNull(),
+    comment: text(),
+    hidden: boolean().notNull().default(false),
+    hiddenReason: text(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("center_reviews_center_idx").on(t.centerId, t.createdAt),
+    check("center_reviews_rating", sql`${t.rating} BETWEEN 1 AND 5`),
+    check("center_reviews_comment_len", sql`${t.comment} IS NULL OR char_length(${t.comment}) <= 1000`),
+  ],
+);
+
+export const bookingDisputes = pgTable(
+  "booking_disputes",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    bookingId: uuid()
+      .notNull()
+      .references(() => bookings.id, { onDelete: "cascade" }),
+    openedById: text().references(() => users.id, { onDelete: "set null" }),
+    openedByRole: bookingActorRole().notNull(),
+    kind: disputeKind().notNull(),
+    description: text().notNull(),
+    status: disputeStatus().notNull().default("open"),
+    /** Booking status before the dispute; support requests don't change the booking status. */
+    priorStatus: bookingStatus(),
+    outcomeStatus: bookingStatus(),
+    resolution: text(),
+    resolvedById: text().references(() => users.id, { onDelete: "set null" }),
+    resolvedAt: timestamp({ withTimezone: true }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("booking_disputes_booking_idx").on(t.bookingId),
+    index("booking_disputes_status_idx").on(t.status, t.createdAt),
+    check("booking_disputes_desc_len", sql`char_length(${t.description}) BETWEEN 5 AND 2000`),
+  ],
+);
+
+/** Commercial terms per provider. Active agreements are never edited: end one, start the next. */
+export const commissionAgreements = pgTable(
+  "commission_agreements",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    centerId: uuid()
+      .notNull()
+      .references(() => serviceCenters.id),
+    status: agreementStatus().notNull().default("draft"),
+    basis: commissionBasis().notNull(),
+    percentBps: integer(),
+    fixedEgp: integer(),
+    /** null = every service category. */
+    categories: careCategory().array(),
+    effectiveFrom: timestamp({ withTimezone: true }).notNull(),
+    effectiveTo: timestamp({ withTimezone: true }),
+    exceptions: text(),
+    settlementSchedule: settlementSchedule().notNull().default("monthly"),
+    contractReference: text(),
+    createdById: text().references(() => users.id, { onDelete: "set null" }),
+    ...timestamps,
+  },
+  (t) => [
+    index("commission_agreements_center_idx").on(t.centerId, t.status),
+    check(
+      "commission_agreements_terms",
+      sql`(${t.basis}::text = 'percent' AND ${t.percentBps} BETWEEN 1 AND 5000 AND ${t.fixedEgp} IS NULL) OR (${t.basis}::text = 'fixed' AND ${t.fixedEgp} BETWEEN 1 AND 100000 AND ${t.percentBps} IS NULL)`,
+    ),
+    check("commission_agreements_range", sql`${t.effectiveTo} IS NULL OR ${t.effectiveTo} > ${t.effectiveFrom}`),
+  ],
+);
+
+export const commissionSettlements = pgTable(
+  "commission_settlements",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    centerId: uuid()
+      .notNull()
+      .references(() => serviceCenters.id),
+    reference: text().notNull().unique(),
+    periodStart: timestamp({ withTimezone: true }).notNull(),
+    periodEnd: timestamp({ withTimezone: true }).notNull(),
+    totalEgp: integer().notNull(),
+    status: settlementStatus().notNull().default("issued"),
+    paymentNote: text(),
+    settledAt: timestamp({ withTimezone: true }),
+    createdById: text().references(() => users.id, { onDelete: "set null" }),
+    ...timestamps,
+  },
+  (t) => [index("commission_settlements_center_idx").on(t.centerId, t.periodStart), check("commission_settlements_range", sql`${t.periodEnd} > ${t.periodStart}`)],
+);
+
+/** One row per completed booking (unique). Created only by the completion path; a trigger checks the booking is completed. */
+export const commissionLedger = pgTable(
+  "commission_ledger",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    bookingId: uuid()
+      .notNull()
+      .unique()
+      .references(() => bookings.id),
+    centerId: uuid()
+      .notNull()
+      .references(() => serviceCenters.id),
+    agreementId: uuid()
+      .notNull()
+      .references(() => commissionAgreements.id),
+    bookingReference: text().notNull(),
+    source: text().notNull().default("motorna_booking"),
+    agreedPriceEgp: integer(),
+    completedAmountEgp: integer().notNull(),
+    basis: commissionBasis().notNull(),
+    percentBps: integer(),
+    fixedEgp: integer(),
+    commissionEgp: integer().notNull(),
+    providerConfirmedAt: timestamp({ withTimezone: true }).notNull(),
+    customerConfirmedAt: timestamp({ withTimezone: true }),
+    status: ledgerStatus().notNull().default("pending_verification"),
+    settlementId: uuid().references(() => commissionSettlements.id),
+    completedAt: timestamp({ withTimezone: true }).notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    index("commission_ledger_center_idx").on(t.centerId, t.completedAt),
+    index("commission_ledger_status_idx").on(t.status),
+    check("commission_ledger_amounts", sql`${t.completedAmountEgp} >= 0 AND ${t.commissionEgp} BETWEEN 0 AND ${t.completedAmountEgp}`),
+  ],
+);
+
+/** Append-only corrections to a ledger row (a trigger blocks UPDATE/DELETE). */
+export const commissionAdjustments = pgTable(
+  "commission_adjustments",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    ledgerId: uuid()
+      .notNull()
+      .references(() => commissionLedger.id),
+    deltaEgp: integer().notNull(),
+    reason: text().notNull(),
+    createdById: text().references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("commission_adjustments_ledger_idx").on(t.ledgerId),
+    check("commission_adjustments_delta", sql`${t.deltaEgp} <> 0 AND ${t.deltaEgp} BETWEEN -1000000 AND 1000000`),
+    check("commission_adjustments_reason_len", sql`char_length(${t.reason}) BETWEEN 3 AND 500`),
+  ],
+);
+
+export type Booking = typeof bookings.$inferSelect;
+export type BookingStatusDb = (typeof bookingStatus.enumValues)[number];
+export type DisputeKind = (typeof disputeKind.enumValues)[number];
+export type LedgerStatus = (typeof ledgerStatus.enumValues)[number];

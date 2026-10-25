@@ -1,3 +1,4 @@
+import bookingEn from "./booking-en";
 import type { Dictionary } from "./ar";
 import careEn from "./care-en";
 
@@ -538,6 +539,16 @@ const en: Dictionary = {
     },
   },
   errors: {
+    bookingTransition: "That action isn't available for this booking's current status.",
+    bookingTooLate: "It's past the change deadline in the cancellation policy. You can still cancel, or contact the provider.",
+    bookingTooEarly: "It's too early for this step.",
+    bookingReasonRequired: "Enter a reason (at least 3 characters).",
+    bookingWindowClosed: "The window to report a problem with this booking has closed. Contact support.",
+    slotTaken: "That time isn't available. Choose another time.",
+    bookingStale: "This booking just changed. Refresh the page and try again.",
+    bookingUnavailable: "Online booking isn't available for this provider right now.",
+    agreementOverlap: "An active agreement already covers these services. End it first.",
+    nothingToSettle: "There are no confirmed, unsettled commissions in this period.",
     applicationIncomplete: "The application is incomplete. Finish the checklist first.",
     documentsUnavailable: "Document upload isn't available right now. Try again later.",
     centerPending: "You already have a center application under review.",
@@ -563,6 +574,8 @@ const en: Dictionary = {
     invalidTransition: "That action isn't available for this listing's current status.",
   },
   validation: {
+    servicePriceRange: "The upper bound must be at least the starting price",
+    closureRange: "The end must be after the start",
     providerCategory: "Choose the provider type",
     mapLink: "That link has no clear location in Egypt. Copy the place link or coordinates from Google Maps.",
     equipmentDetails: "Details can be up to 200 characters",
@@ -594,6 +607,7 @@ const en: Dictionary = {
     newUsedMileage: "A new car must have under 1,000 km",
   },
   care: careEn,
+  booking: bookingEn,
 };
 
 export default en;
