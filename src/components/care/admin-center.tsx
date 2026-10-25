@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { addReviewNote, changeCenterStatus, reviewCredential, setCenterCheck } from "@/server/actions/care-admin";
+import { addReviewNote, adminRemoveCenterPhoto, changeCenterStatus, reviewCredential, setCenterCheck } from "@/server/actions/care-admin";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/field";
 import { actionNeedsReason, nextCenterStatus, ADMIN_CENTER_ACTIONS, type AdminCenterAction, type CenterStatus } from "@/lib/care";
@@ -84,5 +84,19 @@ export function ReviewNoteForm({ dict, centerId }: { dict: CareDict; centerId: s
         <Button type="submit" size="sm" variant="secondary" disabled={pending || !body.trim()}>{A.addNote}</Button>
       </div>
     </form>
+  );
+}
+
+export function AdminRemovePhoto({ dict, photoId }: { dict: CareDict; photoId: string }) {
+  const A = dict.care.admin;
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const { pending, run } = useAction(dict);
+  if (!open) return <button type="button" className="text-xs text-danger-700 underline" onClick={() => setOpen(true)}>{A.removePhoto}</button>;
+  return (
+    <div className="flex flex-col gap-1">
+      <Input aria-label={A.removePhotoReason} placeholder={A.removePhotoReason} value={reason} onChange={(e) => setReason(e.target.value)} className="h-8 text-xs" maxLength={500} />
+      <Button size="sm" variant="danger" disabled={pending || reason.trim().length < 5} onClick={() => run(() => adminRemoveCenterPhoto(photoId, reason), A.done)}>{A.removePhoto}</Button>
+    </div>
   );
 }

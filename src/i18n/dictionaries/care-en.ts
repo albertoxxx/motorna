@@ -3,19 +3,33 @@ import type { CareDictionary } from "./care-ar";
 const careEn: CareDictionary = {
   name: "MOTORNA Care",
   navLabel: "Inspection & service centers",
-  title: "Inspection and service centers reviewed by MOTORNA",
-  intro: "A directory of inspection centers and workshops in Egypt. No center appears here until a MOTORNA moderator has reviewed its documents, address and technicians.",
+  title: "Car services directory for Egypt",
+  intro: "Authorized dealer service centers, independent workshops and pre-purchase inspection centers. No provider appears here until a MOTORNA moderator has reviewed it for its type.",
   bookingSoon: "Booking and payment through MOTORNA aren't available yet. Contact the center directly.",
   approvalMeaning: "A MOTORNA review means the center met our criteria when it was reviewed. It isn't a government license and doesn't guarantee the outcome of any service.",
 
+  providers: {
+    authorized_service: { name: "Authorized service centers", short: "Authorized", desc: "Service centers authorized by the manufacturer or official distributor for specific makes." },
+    independent_workshop: { name: "Independent workshops", short: "Independent workshop", desc: "Maintenance and repair workshops for all or selected makes, not part of a dealer network." },
+    inspection_center: { name: "Pre-purchase inspection centers", short: "Inspection center", desc: "Centers that inspect a car before you buy it and give you a written report." },
+  },
+  verification: {
+    authorized_service: { badge: "Authorization reviewed", body: "MOTORNA reviewed current evidence that the center is authorized by the manufacturer or official distributor for the listed makes." },
+    independent_workshop: { badge: "Workshop reviewed by MOTORNA", body: "MOTORNA reviewed the business identity, location, technicians and the scope of services offered." },
+    inspection_center: { badge: "Inspection capability reviewed", body: "MOTORNA reviewed the inspection equipment, technicians and how inspection reports are written." },
+    separate: "Verification is completely separate from ratings, subscriptions or paid promotion. Paying never grants verification.",
+  },
   howTitle: "How we review centers",
   howSteps: [
     { title: "The center applies", body: "With its details, services, equipment, technicians and official documents." },
     { title: "A moderator reviews", body: "Checks documents, address and technicians, plus equipment for inspection centers." },
     { title: "It joins the directory", body: "Only after every criterion is met, with the date of its latest review." },
   ],
-  criteriaTitle: "What must be confirmed",
+  criteriaTitle: "What we verify for each type",
   criteria: {
+    authorization_verified: { title: "Manufacturer authorization", body: "Current evidence from the manufacturer or official distributor, for the makes listed." },
+    service_scope: { title: "Defined service scope", body: "Services and prices (or quotation policy) are defined and match the workshop's capability." },
+    reporting_process: { title: "Written inspection report", body: "A real sample report showing what was and wasn't inspected." },
     documents_valid: { title: "Valid documents", body: "A readable, unexpired commercial register and tax card." },
     address_confirmed: { title: "Real address", body: "Location confirmed by a visit or a live video call." },
     technician_named: { title: "Named technicians", body: "At least one responsible technician, by name." },
@@ -24,6 +38,12 @@ const careEn: CareDictionary = {
   },
 
   filters: {
+    q: "Center name or location",
+    qPlaceholder: "e.g. Smouha or a center name",
+    provider: "Provider type",
+    allProviders: "All types",
+    make: "Make",
+    allMakes: "All makes",
     city: "Governorate",
     area: "Area",
     category: "Service",
@@ -45,13 +65,14 @@ const careEn: CareDictionary = {
   emptyPreview: ["Services and prices, or its quotation policy", "Opening hours, address and contact options", "Which criteria MOTORNA confirmed, and when"],
   emptyFiltered: "No centers match these filters",
   emptyFilteredBody: "Try removing the area or service filter.",
-  partnerTitle: "Run a workshop or inspection center?",
+  partnerTitle: "Run a service center, workshop or inspection center?",
   partnerBody: "Apply for free. Fill it in at your own pace — you can save and come back.",
   partnerPoints: ["Free to apply", "Documents are seen by moderators only", "Track your application at every step"],
   applyCta: "Apply to join",
   myApplication: "Your center application",
 
   card: {
+    provider: "Type",
     reviewed: "Reviewed by MOTORNA",
     verifiedOn: "Last reviewed {date}",
     today: "Today {hours}",
@@ -61,6 +82,15 @@ const careEn: CareDictionary = {
   },
 
   detail: {
+    providerLabel: "Provider type",
+    makesTitle: "Makes",
+    makesAuthorized: "Authorized for:",
+    noMakes: "This center hasn't listed makes.",
+    photosTitle: "Photos",
+    photoOf: "Photo {i} of {n}",
+    openPin: "Open the center's location on the map",
+    verificationTitle: "Verification",
+    bookingNow: "Available now: call or email the center directly. Booking through MOTORNA isn't available yet.",
     back: "All centers",
     reviewed: "Reviewed by MOTORNA",
     lastVerified: "Last reviewed: {date}",
@@ -96,6 +126,10 @@ const careEn: CareDictionary = {
   },
 
   apply: {
+    category: "Provider type",
+    categoryHint: "Decides which verification we carry out. After approval only MOTORNA can change it.",
+    mapLink: "Google Maps link to the location",
+    mapLinkHint: "Open Google Maps, tap the center's location and copy the link or coordinates (e.g. 31.2156, 29.9553).",
     title: "List your center on MOTORNA Care",
     body: "Applying is free and done in stages. Start with your center's details, then add services, equipment, technicians and documents from your center dashboard.",
     stepsTitle: "Application steps",
@@ -124,6 +158,16 @@ const careEn: CareDictionary = {
   },
 
   dash: {
+    makesTitle: "Makes",
+    makesHint: "Choose the makes you work on. Authorized centers: must match the authorization document.",
+    makesSave: "Save makes",
+    makesSearch: "Search makes",
+    photosTitle: "Center photos",
+    photosHint: "Real photos of the center, outside and inside, and the work areas. Up to 12. The first photo is the cover.",
+    addPhotos: "Add photos",
+    makeCover: "Make cover",
+    cover: "Cover",
+    noPhotos: "No photos yet.",
     title: "Center dashboard",
     myCenters: "My centers",
     noCenters: "You aren't a member of any center.",
@@ -141,6 +185,9 @@ const careEn: CareDictionary = {
     reason: "Message from the moderator",
     checklistTitle: "Application checklist",
     gaps: {
+      makes: "At least one make (authorized centers)",
+      authorization: "Manufacturer authorization document",
+      sampleReport: "Sample inspection report",
       profile: "Center details",
       services: "At least one service",
       equipment: "Core inspection equipment (inspection centers)",
@@ -213,6 +260,8 @@ const careEn: CareDictionary = {
   },
 
   admin: {
+    removePhoto: "Remove photo",
+    removePhotoReason: "Reason for removal",
     centers: "Centers",
     tabs: { queue: "Awaiting review", changes_requested: "Changes requested", approved: "Approved", suspended: "Suspended", rejected: "Rejected", revoked: "Revoked", draft: "Drafts" },
     empty: "No centers here.",
@@ -283,7 +332,7 @@ const careEn: CareDictionary = {
       other: "Other equipment",
     },
     vehicleType: { passenger: "Passenger cars", suv_4x4: "SUV and 4x4", commercial: "Light commercial", electric_hybrid: "Electric and hybrid" },
-    credential: { commercial_register: "Commercial register", tax_card: "Tax card", brand_authorization: "Brand authorization", other: "Other document" },
+    credential: { commercial_register: "Commercial register", tax_card: "Tax card", brand_authorization: "Brand authorization", other: "Other document", sample_report: "Sample inspection report" },
     review: { pending: "Awaiting review", accepted: "Accepted", rejected: "Rejected" },
     staffRole: { owner: "Owner", manager: "Manager", technician: "Technician" },
     weekday: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],

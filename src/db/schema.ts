@@ -14,6 +14,7 @@ import {
   uniqueIndex,
   index,
   check,
+  doublePrecision,
 } from "drizzle-orm/pg-core";
 
 /* ------------------------------------------------------------------ */
@@ -460,8 +461,10 @@ export const careCategory = pgEnum("care_category", [
   "other",
 ]);
 export const priceMode = pgEnum("price_mode", ["fixed", "quote"]);
-export const credentialKind = pgEnum("credential_kind", ["commercial_register", "tax_card", "brand_authorization", "other"]);
+export const credentialKind = pgEnum("credential_kind", ["commercial_register", "tax_card", "brand_authorization", "other", "sample_report"]);
 export const reviewState = pgEnum("review_state", ["pending", "accepted", "rejected"]);
+/** What kind of provider this is; decides which verification criteria apply. */
+export const providerCategory = pgEnum("provider_category", ["authorized_service", "independent_workshop", "inspection_center"]);
 
 export const serviceCenters = pgTable(
   "service_centers",
@@ -481,6 +484,10 @@ export const serviceCenters = pgTable(
     description: text().notNull().default(""),
     vehicleTypes: text().array().notNull().default(sql`'{}'::text[]`),
     quotationPolicy: text().notNull().default(""),
+    category: providerCategory().notNull().default("independent_workshop"),
+    /** Optional map pin, parsed from a Google Maps link the center pastes. */
+    latitude: doublePrecision(),
+    longitude: doublePrecision(),
     status: centerStatus().notNull().default("applied"),
     statusReason: text(),
     approvedAt: timestamp({ withTimezone: true }),
@@ -496,6 +503,8 @@ export const serviceCenters = pgTable(
   (t) => [
     index("service_centers_status_idx").on(t.status),
     index("service_centers_city_idx").on(t.cityId),
+    index("service_centers_category_idx").on(t.category),
+    check("service_centers_coords", sql`(${t.latitude} IS NULL AND ${t.longitude} IS NULL) OR (${t.latitude} BETWEEN 21 AND 32 AND ${t.longitude} BETWEEN 24 AND 37)`),
     check("service_centers_description_length", sql`char_length(${t.description}) <= 3000`),
   ],
 );
@@ -667,8 +676,42 @@ export const centerReviewNotes = pgTable(
   (t) => [index("center_review_notes_center_idx").on(t.centerId), check("center_review_notes_length", sql`char_length(${t.body}) BETWEEN 1 AND 2000`)],
 );
 
+/** Vehicle makes a center works on (for authorized centers: the makes it is authorized for). */
+export const centerMakes = pgTable(
+  "center_makes",
+  {
+    centerId: uuid()
+      .notNull()
+      .references(() => serviceCenters.id, { onDelete: "cascade" }),
+    makeId: smallint()
+      .notNull()
+      .references(() => vehicleMakes.id),
+  },
+  (t) => [primaryKey({ columns: [t.centerId, t.makeId] }), index("center_makes_make_idx").on(t.makeId)],
+);
+
+/** Real photos uploaded by the center (public bucket, re-encoded, EXIF stripped). */
+export const centerPhotos = pgTable(
+  "center_photos",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    centerId: uuid()
+      .notNull()
+      .references(() => serviceCenters.id, { onDelete: "cascade" }),
+    storageKey: text().notNull(),
+    thumbKey: text().notNull(),
+    width: integer().notNull(),
+    height: integer().notNull(),
+    position: smallint().notNull().default(0),
+    uploadedById: text().references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("center_photos_center_idx").on(t.centerId, t.position)],
+);
+
 export type ServiceCenter = typeof serviceCenters.$inferSelect;
 export type CenterStatus = (typeof centerStatus.enumValues)[number];
 export type CenterStaffRole = (typeof centerStaffRole.enumValues)[number];
 export type CareCategory = (typeof careCategory.enumValues)[number];
 export type CredentialKind = (typeof credentialKind.enumValues)[number];
+export type ProviderCategory = (typeof providerCategory.enumValues)[number];

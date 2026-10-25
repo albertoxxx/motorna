@@ -104,7 +104,7 @@ const en: Dictionary = {
     role: { user: "User", dealer: "Dealer", admin: "Admin" },
   },
   home: {
-    careTitle: "Run a workshop or inspection center?",
+    careTitle: "Run a service center, workshop or inspection center?",
     careBody: "List it in the MOTORNA Care directory. Applying is free, and documents are seen by moderators only.",
     careCta: "Apply to join",
     heroTitle: "Find your next car with confidence.",
@@ -533,6 +533,8 @@ const en: Dictionary = {
     invalidTransition: "That action isn't available for this listing's current status.",
   },
   validation: {
+    providerCategory: "Choose the provider type",
+    mapLink: "That link has no clear location in Egypt. Copy the place link or coordinates from Google Maps.",
     equipmentDetails: "Details can be up to 200 characters",
     technicianName: "Enter the full name (3–80 characters)",
     technicianYears: "Years of experience must be 0–60",

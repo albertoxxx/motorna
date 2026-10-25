@@ -5,7 +5,7 @@ import { centerAudit, centerWorkspace, reviewNotes } from "@/server/care";
 import { Badge } from "@/components/ui/badge";
 import { Notice } from "@/components/ui/states";
 import { careStatusTone } from "@/components/care/status";
-import { CenterStatusActions, CheckRow, CredentialReview, ReviewNoteForm } from "@/components/care/admin-center";
+import { AdminRemovePhoto, CenterStatusActions, CheckRow, CredentialReview, ReviewNoteForm } from "@/components/care/admin-center";
 import { applicableCriteria, approvalBlockers } from "@/lib/care";
 import { formatDate, formatPrice } from "@/lib/format";
 
@@ -35,6 +35,7 @@ export default async function AdminCenterPage({ params }: PageProps<"/[lang]/adm
   const cdict = { care: dict.care, common: dict.common, validation: dict.validation, errors: dict.errors };
   const offersInspection = ws.services.some((s) => s.category === "pre_purchase_inspection" && s.active);
   const blockers = approvalBlockers({
+    category: c.category,
     checks: Object.fromEntries(Object.entries(ws.checks).map(([k, v]) => [k, v!.passed])),
     offersInspection,
     credentials: ws.credentials,
@@ -48,6 +49,7 @@ export default async function AdminCenterPage({ params }: PageProps<"/[lang]/adm
           <h1 className="text-2xl font-bold"><bdi>{c.nameEn}</bdi> · <bdi>{c.nameAr}</bdi></h1>
           <Badge tone={careStatusTone(c.status)}>{K.enums.status[c.status]}</Badge>
         </div>
+        <p className="mt-1 text-sm font-medium text-brand-700">{K.providers[c.category].name}</p>
         {c.submittedAt && <p className="mt-1 text-sm text-ink-3">{A.submittedOn.replace("{date}", formatDate(c.submittedAt, locale))}</p>}
         {c.statusReason && <p className="mt-1 text-sm text-ink-3">{K.dash.reason}: <bdi>{c.statusReason}</bdi></p>}
         {isDraft && <Notice tone="warning" className="mt-3">{A.draftNotice}</Notice>}
@@ -65,6 +67,25 @@ export default async function AdminCenterPage({ params }: PageProps<"/[lang]/adm
       </Box>
 
       <div className="grid gap-6 md:grid-cols-2">
+        <Box title={D.makesTitle}>
+          {ws.makes.length === 0 ? <p className="text-sm text-ink-3">{D.noMakes}</p> : <p className="text-sm">{ws.makes.map((m) => m.nameEn).join(", ")}</p>}
+          {c.latitude != null && c.longitude != null && (
+            <a href={`https://www.google.com/maps/search/?api=1&query=${c.latitude},${c.longitude}`} target="_blank" rel="noopener" className="mt-2 inline-block text-sm text-brand-700 hover:underline">{D.openPin}</a>
+          )}
+        </Box>
+        <Box title={D.photosTitle}>
+          {ws.photos.length === 0 ? <p className="text-sm text-ink-3">{K.dash.noPhotos}</p> : (
+            <ul className="grid grid-cols-3 gap-2">
+              {ws.photos.map((p) => (
+                <li key={p.id} className="flex flex-col gap-1">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={p.thumbUrl} alt="" className="aspect-[4/3] w-full rounded object-cover" />
+                  <AdminRemovePhoto dict={cdict} photoId={p.id} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </Box>
         <Box title={D.services}>
           {ws.services.length === 0 ? <p className="text-sm text-ink-3">{D.noServices}</p> : (
             <ul className="flex flex-col gap-1.5 text-sm">
@@ -126,7 +147,7 @@ export default async function AdminCenterPage({ params }: PageProps<"/[lang]/adm
         <Box title={A.checklist}>
           {!offersInspection && <p className="mb-3 text-sm text-ink-3">{A.noInspection}</p>}
           <ul className="flex flex-col gap-4">
-            {applicableCriteria(offersInspection).map((k) => {
+            {applicableCriteria(c.category, offersInspection).map((k) => {
               const ck = ws.checks[k];
               return (
                 <li key={k} className="flex flex-col gap-2">

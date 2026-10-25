@@ -23,7 +23,8 @@ const { db, schema } = await import("@/db");
 const care = await import("@/server/actions/care");
 const careAdmin = await import("@/server/actions/care-admin");
 const queries = await import("@/server/care");
-const { nextCenterStatus, approvalBlockers } = await import("@/lib/care");
+const { nextCenterStatus, approvalBlockers, applicableCriteria, parseMapCoords } = await import("@/lib/care");
+const photoRoute = await import("@/app/api/care/centers/[id]/photos/route");
 const uploadRoute = await import("@/app/api/care/centers/[id]/credentials/route");
 const fileRoute = await import("@/app/api/care/credentials/[id]/route");
 
@@ -47,6 +48,7 @@ const application = (over: Record<string, unknown> = {}) => ({
   description: "Diagnostics and inspection.",
   vehicleTypes: ["passenger"],
   quotationPolicy: "",
+  category: "independent_workshop",
   acceptTerms: true,
   ...over,
 });
@@ -109,9 +111,29 @@ describe("pure rules", () => {
       { kind: "commercial_register", reviewState: "accepted", expiresAt: null },
       { kind: "tax_card", reviewState: "accepted", expiresAt: new Date(Date.now() - 1000) },
     ];
-    const checks = { documents_valid: true, address_confirmed: true, technician_named: true, terms_accepted: true };
-    expect(approvalBlockers({ checks, offersInspection: false, credentials: docs })).toEqual(["document:tax_card"]);
-    expect(approvalBlockers({ checks, offersInspection: true, credentials: [] })).toContain("check:inspection_equipment");
+    const checks = { documents_valid: true, address_confirmed: true, technician_named: true, service_scope: true, terms_accepted: true };
+    expect(approvalBlockers({ category: "independent_workshop", checks, offersInspection: false, credentials: docs })).toEqual(["document:tax_card"]);
+    expect(approvalBlockers({ category: "independent_workshop", checks, offersInspection: true, credentials: [] })).toContain("check:inspection_equipment");
+  });
+  it("each provider type has its own verification criteria and documents", () => {
+    expect(applicableCriteria("authorized_service", false)).toEqual(["documents_valid", "address_confirmed", "authorization_verified", "terms_accepted"]);
+    expect(applicableCriteria("independent_workshop", false)).toContain("service_scope");
+    expect(applicableCriteria("inspection_center", false)).toEqual(expect.arrayContaining(["inspection_equipment", "reporting_process", "technician_named"]));
+    const core = [
+      { kind: "commercial_register", reviewState: "accepted", expiresAt: null },
+      { kind: "tax_card", reviewState: "accepted", expiresAt: null },
+    ];
+    const auth = approvalBlockers({ category: "authorized_service", checks: { documents_valid: true, address_confirmed: true, authorization_verified: true, terms_accepted: true }, offersInspection: false, credentials: core });
+    expect(auth).toEqual(["document:brand_authorization"]);
+    const insp = approvalBlockers({ category: "inspection_center", checks: {}, offersInspection: true, credentials: core });
+    expect(insp).toContain("document:sample_report");
+  });
+  it("parses map pins only when they are clearly in Egypt", () => {
+    expect(parseMapCoords("https://www.google.com/maps/place/X/@31.2156,29.9553,17z")).toEqual({ latitude: 31.2156, longitude: 29.9553 });
+    expect(parseMapCoords("31.2001, 29.9187")).toEqual({ latitude: 31.2001, longitude: 29.9187 });
+    expect(parseMapCoords("https://maps.google.com/?q=30.0444,31.2357")).toEqual({ latitude: 30.0444, longitude: 31.2357 });
+    expect(parseMapCoords("https://www.google.com/maps/@48.85,2.35,12z")).toBeNull();
+    expect(parseMapCoords("near the big mosque")).toBeNull();
   });
 });
 
@@ -151,8 +173,8 @@ describe("draft → submitted", () => {
     expect(r.ok === false && r.error).toBe("applicationIncomplete");
   });
 
-  it("an inspection center must declare the core equipment before submitting", async () => {
-    const c = await apply(people.tech);
+  it("an inspection center must declare the core equipment and a sample report before submitting", async () => {
+    const c = await apply(people.tech, { category: "inspection_center" });
     current = people.tech;
     await care.saveCenterService(c.id, null, { category: "pre_purchase_inspection", nameAr: "فحص", nameEn: "Inspection", priceMode: "quote", durationMin: "60" });
     await care.addCenterTechnician(c.id, { fullName: "Ali Hassan" });
@@ -161,6 +183,8 @@ describe("draft → submitted", () => {
     }
     expect((await care.submitCenter(c.id)).ok).toBe(false);
     for (const kind of ["obd_scanner", "paint_thickness_gauge", "lift"]) await care.addCenterEquipment(c.id, { kind });
+    expect((await care.submitCenter(c.id)).ok).toBe(false); // still needs a sample report
+    await db.insert(schema.centerCredentials).values({ centerId: c.id, kind: "sample_report", fileKey: `centers/${c.id}/credentials/report.pdf`, contentType: "application/pdf", uploadedById: people.tech.id });
     expect((await care.submitCenter(c.id)).ok).toBe(true);
     const [row] = await db.select().from(schema.serviceCenters).where(eq(schema.serviceCenters.id, c.id));
     expect(row.status).toBe("applied");
@@ -219,7 +243,7 @@ describe("approval is admin-only and evidence-based", () => {
     expect((await careAdmin.changeCenterStatus(center.id, "startReview")).ok).toBe(true);
     const blocked = await careAdmin.changeCenterStatus(center.id, "approve");
     expect(blocked.ok === false && blocked.error).toBe("approvalBlocked");
-    await passChecks(center.id, ["documents_valid", "address_confirmed", "technician_named", "terms_accepted"]);
+    await passChecks(center.id, ["documents_valid", "address_confirmed", "technician_named", "service_scope", "terms_accepted"]);
     expect((await careAdmin.changeCenterStatus(center.id, "approve")).ok).toBe(false); // documents still missing
     await acceptCoreDocs(center.id, people.owner2.id);
     // Adding an inspection service makes the equipment criterion mandatory.
@@ -242,7 +266,7 @@ describe("approval is admin-only and evidence-based", () => {
     // Technician names stay private; only passed criteria are shown.
     expect(JSON.stringify(pub?.technicians)).not.toContain("Mahmoud");
     expect(pub?.technicians[0]).toMatchObject({ specialty: "Diagnostics", yearsExperience: 8 });
-    expect(pub?.checks.map((k) => k.criterion).sort()).toEqual(["address_confirmed", "documents_valid", "inspection_equipment", "technician_named", "terms_accepted"]);
+    expect(pub?.checks.map((k) => k.criterion).sort()).toEqual(["address_confirmed", "documents_valid", "inspection_equipment", "service_scope", "technician_named", "terms_accepted"]);
   });
 
   it("identity fields lock after approval; other edits still work", async () => {
@@ -252,6 +276,13 @@ describe("approval is admin-only and evidence-based", () => {
     const renamed = await care.updateCenterProfile(center.id, { ...base, nameEn: "Different Name" });
     expect(renamed.ok === false && renamed.error).toBe("identityLocked");
     expect((await care.updateCenterProfile(center.id, { ...base, description: "Now with a lift." })).ok).toBe(true);
+    // Provider type decides the verification, so it can't be switched after approval either.
+    const switched = await care.updateCenterProfile(center.id, { ...base, category: "authorized_service" });
+    expect(switched.ok === false && switched.error).toBe("identityLocked");
+    const pinned = await care.updateCenterProfile(center.id, { ...base, mapLink: "https://www.google.com/maps/@31.2156,29.9553,17z" });
+    expect(pinned.ok).toBe(true);
+    const bad = await care.updateCenterProfile(center.id, { ...base, mapLink: "somewhere nice" });
+    expect(bad.ok === false && bad.fields?.mapLink).toBe("mapLink");
   });
 
   it("technicians and outsiders can't edit the profile or services", async () => {
@@ -364,6 +395,97 @@ describe("validation", () => {
     }
     expect((await care.setCenterHours(owned.id, [{ weekday: 1, opens: "18:00", closes: "09:00" }])).ok).toBe(false);
     expect((await care.setCenterHours(owned.id, [{ weekday: 6, opens: "09:00", closes: "18:00" }])).ok).toBe(true);
+  });
+});
+
+describe("authorized service centers", () => {
+  it("need makes and authorization evidence to submit, and an accepted authorization to be approved", async () => {
+    const owner = { ...people.owner }; // owner already has a draft workshop; use a fresh account
+    const id = crypto.randomUUID();
+    await db.insert(schema.users).values({ id, name: "Dealer", email: `dealer-${id.slice(0, 6)}@care.test` });
+    const dealer = { ...owner, id, name: "Dealer" };
+    const c = await apply(dealer, { category: "authorized_service" });
+    current = dealer;
+    await care.saveCenterService(c.id, null, { category: "routine_maintenance", nameAr: "صيانة", nameEn: "Service", priceMode: "quote", durationMin: "120" });
+    for (const kind of ["commercial_register", "tax_card"] as const) {
+      await db.insert(schema.centerCredentials).values({ centerId: c.id, kind, fileKey: `centers/${c.id}/credentials/${kind}.pdf`, contentType: "application/pdf", uploadedById: id });
+    }
+    expect((await care.submitCenter(c.id)).ok).toBe(false); // no makes, no authorization
+    const [toyota] = await db.select({ id: schema.vehicleMakes.id }).from(schema.vehicleMakes).where(eq(schema.vehicleMakes.slug, "toyota"));
+    expect((await care.setCenterMakes(c.id, [999999])).ok).toBe(false);
+    expect((await care.setCenterMakes(c.id, [toyota.id])).ok).toBe(true);
+    expect((await care.submitCenter(c.id)).ok).toBe(false); // still no authorization document
+    const [authDoc] = await db
+      .insert(schema.centerCredentials)
+      .values({ centerId: c.id, kind: "brand_authorization", fileKey: `centers/${c.id}/credentials/auth.pdf`, contentType: "application/pdf", uploadedById: id, expiresAt: new Date(Date.now() + 365 * 86_400_000) })
+      .returning({ id: schema.centerCredentials.id });
+    expect((await care.submitCenter(c.id)).ok).toBe(true);
+
+    current = people.admin;
+    await careAdmin.changeCenterStatus(c.id, "startReview");
+    await passChecks(c.id, ["documents_valid", "address_confirmed", "authorization_verified", "terms_accepted"]);
+    await acceptCoreDocs(c.id, id);
+    expect((await careAdmin.changeCenterStatus(c.id, "approve")).ok).toBe(false); // authorization not accepted yet
+    expect((await careAdmin.reviewCredential(authDoc.id, "accepted")).ok).toBe(true);
+    expect((await careAdmin.changeCenterStatus(c.id, "approve")).ok).toBe(true);
+
+    // Makes are part of the authorization: locked after approval.
+    current = dealer;
+    expect((await care.setCenterMakes(c.id, [])).ok).toBe(false);
+    const list = await queries.approvedCenters({ provider: "authorized_service", make: "toyota" });
+    expect(list.items.map((x) => x.id)).toContain(c.id);
+    expect((await queries.approvedCenters({ provider: "inspection_center", make: "toyota" })).items.map((x) => x.id)).not.toContain(c.id);
+    const pub = await queries.publicCenterBySlug(c.slug);
+    expect(pub?.category).toBe("authorized_service");
+    expect(pub?.makes.map((m) => m.slug)).toEqual(["toyota"]);
+  });
+});
+
+describe("directory search and provider filters", () => {
+  it("searches name and location and counts match the filtered list", async () => {
+    const tag = `srch${Date.now().toString(36)}`;
+    const [c] = await db
+      .insert(schema.serviceCenters)
+      .values({ slug: `${tag}`, nameAr: `مركز ${tag}`, nameEn: `${tag} Motors`, cityId: 1, area: "Miami", address: "Gamal Abdel Nasser St", phone: "034251234", status: "approved", category: "inspection_center", approvedAt: new Date(), createdById: people.admin.id })
+      .returning({ id: schema.serviceCenters.id });
+    const byName = await queries.approvedCenters({ q: tag });
+    expect(byName.total).toBe(1);
+    expect(byName.items[0].id).toBe(c.id);
+    expect((await queries.approvedCenters({ q: "miami" })).items.map((x) => x.id)).toContain(c.id);
+    expect((await queries.approvedCenters({ q: "100%_" })).total).toBe(0); // LIKE wildcards are escaped
+    const insp = await queries.approvedCenters({ provider: "inspection_center", q: tag });
+    expect(insp.total).toBe(1);
+    expect((await queries.approvedCenters({ provider: "authorized_service", q: tag })).total).toBe(0);
+    const counts = await queries.providerCounts();
+    expect(counts.inspection_center ?? 0).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("center photos", () => {
+  const jpeg = async () => {
+    const sharp = (await import("sharp")).default;
+    return new Blob([await sharp({ create: { width: 900, height: 600, channels: 3, background: "#456" } }).jpeg().toBuffer()], { type: "image/jpeg" });
+  };
+  const post = async (centerId: string, file: Blob) => {
+    const fd = new FormData();
+    fd.append("file", file, "p.jpg");
+    return photoRoute.POST(new Request(`http://localhost/api/care/centers/${centerId}/photos`, { method: "POST", body: fd }), { params: Promise.resolve({ id: centerId }) } as never);
+  };
+  it("only managers upload; photos appear on the approved profile and can be removed by admins", async () => {
+    const [owned] = await queries.centersForUser(people.owner2.id);
+    current = people.stranger;
+    expect((await post(owned.id, await jpeg())).status).toBe(403);
+    current = people.owner2;
+    const res = await post(owned.id, await jpeg());
+    expect(res.status).toBe(200);
+    const { photo } = await res.json();
+    const pub = await queries.publicCenterBySlug(owned.slug);
+    expect(pub?.photos.map((p) => p.id)).toContain(photo.id);
+    current = people.owner2;
+    expect((await careAdmin.adminRemoveCenterPhoto(photo.id, "Not a photo of this center")).ok).toBe(false);
+    current = people.admin;
+    expect((await careAdmin.adminRemoveCenterPhoto(photo.id, "Not a photo of this center")).ok).toBe(true);
+    expect((await queries.publicCenterBySlug(owned.slug))?.photos.map((p) => p.id)).not.toContain(photo.id);
   });
 });
 

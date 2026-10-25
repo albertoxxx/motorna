@@ -6,6 +6,7 @@ import { resolveLocale } from "@/i18n/server";
 import { publicCenterBySlug } from "@/server/care";
 import { applicableCriteria, type CenterCriterion } from "@/lib/care";
 import { formatDate, formatPrice } from "@/lib/format";
+import { Gallery } from "@/components/gallery";
 
 export async function generateMetadata({ params }: PageProps<"/[lang]/care/centers/[slug]">): Promise<Metadata> {
   const { locale, dict } = await resolveLocale(params);
@@ -40,10 +41,14 @@ export default async function CenterPublicPage({ params }: PageProps<"/[lang]/ca
   const verified = c.lastVerifiedAt ?? c.approvedAt;
   const offersInspection = c.services.some((s) => s.category === "pre_purchase_inspection");
   const checks = new Map(c.checks.map((k) => [k.criterion as CenterCriterion, k.checkedAt]));
-  const confirmed = applicableCriteria(offersInspection).filter((k) => checks.has(k));
+  const confirmed = applicableCriteria(c.category, offersInspection).filter((k) => checks.has(k));
   const equipmentCheck = checks.get("inspection_equipment");
   const order = [6, 0, 1, 2, 3, 4, 5];
-  const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${c.address}, ${c.area ?? ""}, ${c.cityNameEn}, Egypt`)}`;
+  // A pin only when the center supplied one; otherwise a search for the address it entered.
+  const hasPin = c.latitude != null && c.longitude != null;
+  const mapUrl = hasPin
+    ? `https://www.google.com/maps/search/?api=1&query=${c.latitude},${c.longitude}`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${c.address}, ${c.area ?? ""}, ${c.cityNameEn}, Egypt`)}`;
   const sep = locale === "ar" ? "، " : ", ";
 
   return (
@@ -61,9 +66,10 @@ export default async function CenterPublicPage({ params }: PageProps<"/[lang]/ca
           {locale === "ar" ? c.cityNameAr : c.cityNameEn}{c.area && <>{sep}<bdi>{c.area}</bdi></>}
         </p>
         <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center rounded-full bg-navy-900 px-3 py-1 text-sm font-medium text-white">{K.providers[c.category].short}</span>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-success-50 px-3 py-1 text-sm font-medium text-success-700">
             <BadgeCheck className="size-4" aria-hidden />
-            {D.reviewed}
+            {K.verification[c.category].badge}
           </span>
           {verified && <span className="text-sm text-ink-3">{D.lastVerified.replace("{date}", formatDate(verified, locale, { dateStyle: "long" }))}</span>}
         </div>
@@ -71,6 +77,11 @@ export default async function CenterPublicPage({ params }: PageProps<"/[lang]/ca
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_22rem]">
         <div className="flex min-w-0 flex-col gap-6">
+          {c.photos.length > 0 && (
+            <section aria-label={D.photosTitle}>
+              <Gallery images={c.photos} alt={name} labels={{ noPhotos: D.photosTitle, photoOf: D.photoOf, prev: dict.common.previous, next: dict.common.nextPage, fullscreen: dict.listing.fullscreen, close: dict.nav.close }} />
+            </section>
+          )}
           {c.description && (
             <Card id="about" title={D.about}>
               <p dir="auto" className="whitespace-pre-line leading-relaxed text-ink-2">{c.description}</p>
@@ -101,6 +112,19 @@ export default async function CenterPublicPage({ params }: PageProps<"/[lang]/ca
                 <p className="font-medium">{D.quotationPolicy}</p>
                 <p dir="auto" className="mt-1 whitespace-pre-line text-ink-2">{c.quotationPolicy}</p>
               </div>
+            )}
+          </Card>
+
+          <Card id="makes" title={D.makesTitle}>
+            {c.makes.length === 0 ? (
+              <p className="text-ink-3">{D.noMakes}</p>
+            ) : (
+              <>
+                {c.category === "authorized_service" && <p className="mb-2 text-sm text-ink-3">{D.makesAuthorized}</p>}
+                <ul className="flex flex-wrap gap-2">
+                  {c.makes.map((m) => <li key={m.id}><Link href={`/${locale}/care?make=${m.slug}`} className="inline-block rounded-md bg-navy-900/[0.05] px-2.5 py-1 text-sm hover:bg-navy-900/10">{locale === "ar" ? m.nameAr : m.nameEn}</Link></li>)}
+                </ul>
+              </>
             )}
           </Card>
 
@@ -140,8 +164,10 @@ export default async function CenterPublicPage({ params }: PageProps<"/[lang]/ca
             </Card>
           )}
 
-          <Card id="review" title={D.scopeTitle}>
-            <p className="text-sm text-ink-2">{D.scopeBody}</p>
+          <Card id="review" title={D.verificationTitle}>
+            <p className="text-sm font-medium">{K.verification[c.category].badge}</p>
+            <p className="mt-1 text-sm text-ink-2">{K.verification[c.category].body}</p>
+            <p className="mt-3 text-sm text-ink-2">{D.scopeBody}</p>
             <ul className="mt-4 flex flex-col gap-3">
               {confirmed.map((k) => (
                 <li key={k} className="flex items-start gap-3">
@@ -154,7 +180,8 @@ export default async function CenterPublicPage({ params }: PageProps<"/[lang]/ca
                 </li>
               ))}
             </ul>
-            <div className="mt-5 flex gap-3 rounded-[var(--radius-md)] border border-warning-600/30 bg-warning-50 p-4 text-sm text-warning-700">
+            <p className="mt-4 text-xs text-ink-3">{K.verification.separate}</p>
+            <div className="mt-4 flex gap-3 rounded-[var(--radius-md)] border border-warning-600/30 bg-warning-50 p-4 text-sm text-warning-700">
               <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
               <div>
                 <p className="font-semibold">{D.notLicenseTitle}</p>
@@ -182,13 +209,13 @@ export default async function CenterPublicPage({ params }: PageProps<"/[lang]/ca
                 </a>
               )}
             </div>
-            <p className="mt-4 text-xs text-ink-3">{K.bookingSoon}</p>
+            <p className="mt-4 text-xs text-ink-3">{D.bookingNow}</p>
           </Card>
 
           <Card id="location" title={D.location}>
             <p dir="auto" className="text-sm text-ink-2">{c.address}</p>
             <a href={mapUrl} target="_blank" rel="noopener" className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:underline">
-              <MapPin className="size-4" aria-hidden />{D.openMap}
+              <MapPin className="size-4" aria-hidden />{hasPin ? D.openPin : D.openMap}
             </a>
           </Card>
 

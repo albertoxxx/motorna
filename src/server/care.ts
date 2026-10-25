@@ -1,9 +1,10 @@
 import "server-only";
+import { storage } from "@/lib/storage";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { cairoWeekday, DIRECTORY_PAGE_SIZE, type CenterCriterion, type DirectorySort, type StaffRole } from "@/lib/care";
 
-const { serviceCenters: C, centerStaff: ST, centerServices: SV, centerHours: H, centerCredentials: CR, centerApprovalChecks: CK, centerEquipment: EQ, centerTechnicians: TECH, centerReviewNotes: NOTE, cities, users: U, auditLogs: A } = schema;
+const { serviceCenters: C, centerStaff: ST, centerServices: SV, centerHours: H, centerCredentials: CR, centerApprovalChecks: CK, centerEquipment: EQ, centerTechnicians: TECH, centerReviewNotes: NOTE, centerMakes: CM, centerPhotos: PH, vehicleMakes: MK, cities, users: U, auditLogs: A } = schema;
 
 const publicCols = {
   id: C.id,
@@ -18,13 +19,30 @@ const publicCols = {
   description: C.description,
   vehicleTypes: C.vehicleTypes,
   quotationPolicy: C.quotationPolicy,
+  category: C.category,
+  latitude: C.latitude,
+  longitude: C.longitude,
   approvedAt: C.approvedAt,
   cityNameAr: cities.nameAr,
   cityNameEn: cities.nameEn,
   citySlug: cities.slug,
 };
 
-export type DirectoryFilter = { city?: string; area?: string; category?: string; sort?: DirectorySort; page?: number };
+export type DirectoryFilter = {
+  q?: string;
+  city?: string;
+  area?: string;
+  /** Provider category: authorized_service | independent_workshop | inspection_center */
+  provider?: string;
+  /** Service type (care_category) */
+  category?: string;
+  /** Vehicle make slug */
+  make?: string;
+  sort?: DirectorySort;
+  page?: number;
+};
+
+const likeEscape = (s: string) => s.replace(/[\\%_]/g, (m) => `\\${m}`);
 
 /**
  * Public directory: approved centers only. Filters run in SQL, so the count and the
@@ -34,6 +52,15 @@ export async function approvedCenters(filter: DirectoryFilter = {}) {
   const conds = [eq(C.status, "approved")];
   if (filter.city) conds.push(eq(cities.slug, filter.city));
   if (filter.area) conds.push(sql`lower(trim(${C.area})) = lower(trim(${filter.area}))`);
+  if (filter.provider) conds.push(sql`${C.category} = ${filter.provider}`);
+  if (filter.make) {
+    conds.push(sql`EXISTS (SELECT 1 FROM ${CM} JOIN ${MK} ON ${MK.id} = ${CM.makeId} WHERE ${CM.centerId} = ${C.id} AND ${MK.slug} = ${filter.make})`);
+  }
+  if (filter.q) {
+    // Name or location: Arabic/English name, area, address, governorate.
+    const p = `%${likeEscape(filter.q.trim())}%`;
+    conds.push(sql`(${C.nameAr} ILIKE ${p} OR ${C.nameEn} ILIKE ${p} OR ${C.area} ILIKE ${p} OR ${C.address} ILIKE ${p} OR ${cities.nameAr} ILIKE ${p} OR ${cities.nameEn} ILIKE ${p})`);
+  }
   if (filter.category) {
     conds.push(
       sql`EXISTS (SELECT 1 FROM ${SV} WHERE ${SV.centerId} = ${C.id} AND ${SV.active} AND ${SV.category} = ${filter.category})`,
@@ -57,18 +84,26 @@ export async function approvedCenters(filter: DirectoryFilter = {}) {
     .offset((page - 1) * DIRECTORY_PAGE_SIZE);
   const ids = rows.map((r) => r.id);
   const today = cairoWeekday();
-  const [services, hours] = ids.length
+  const [services, hours, makes, photos] = ids.length
     ? await Promise.all([
         db.select({ centerId: SV.centerId, category: SV.category }).from(SV).where(and(inArray(SV.centerId, ids), eq(SV.active, true))),
         db.select().from(H).where(inArray(H.centerId, ids)),
+        db.select({ centerId: CM.centerId, nameAr: MK.nameAr, nameEn: MK.nameEn }).from(CM).innerJoin(MK, eq(MK.id, CM.makeId)).where(inArray(CM.centerId, ids)).orderBy(asc(MK.nameEn)),
+        db.select({ centerId: PH.centerId, thumbKey: PH.thumbKey, position: PH.position }).from(PH).where(inArray(PH.centerId, ids)).orderBy(asc(PH.position), asc(PH.createdAt)),
       ])
-    : [[], []];
+    : [[], [], [], []];
+  const st = storage();
   const items = rows.map((r) => {
     const mine = hours.filter((x) => x.centerId === r.id);
     const t = mine.find((x) => x.weekday === today);
     return {
       ...r,
       categories: [...new Set(services.filter((x) => x.centerId === r.id).map((x) => x.category))],
+      makes: makes.filter((x) => x.centerId === r.id).map(({ nameAr, nameEn }) => ({ nameAr, nameEn })),
+      coverUrl: (() => {
+        const ph = photos.find((x) => x.centerId === r.id);
+        return ph ? st.publicUrl(ph.thumbKey) : null;
+      })(),
       // null = no published hours; { closed: true } = published hours but closed today.
       today: mine.length === 0 ? null : t ? { closed: false as const, opens: t.opens, closes: t.closes } : { closed: true as const },
     };
@@ -77,6 +112,23 @@ export async function approvedCenters(filter: DirectoryFilter = {}) {
 }
 
 /** Distinct areas among approved centers (optionally in one governorate), for the area filter. */
+/** Approved centers per provider category, for the directory tabs. */
+export async function providerCounts() {
+  const rows = await db.select({ category: C.category, n: sql<number>`count(*)::int` }).from(C).where(eq(C.status, "approved")).groupBy(C.category);
+  return Object.fromEntries(rows.map((r) => [r.category, r.n])) as Partial<Record<schema.ProviderCategory, number>>;
+}
+
+/** Makes that at least one approved center supports, for the make filter. */
+export async function directoryMakes() {
+  return db
+    .selectDistinct({ slug: MK.slug, nameAr: MK.nameAr, nameEn: MK.nameEn })
+    .from(CM)
+    .innerJoin(MK, eq(MK.id, CM.makeId))
+    .innerJoin(C, eq(C.id, CM.centerId))
+    .where(eq(C.status, "approved"))
+    .orderBy(asc(MK.nameEn));
+}
+
 export async function directoryAreas(city?: string) {
   const rows = await db
     .selectDistinct({ area: sql<string>`trim(${C.area})` })
@@ -99,7 +151,8 @@ export async function publicCenterBySlug(slug: string) {
     .innerJoin(cities, eq(cities.id, C.cityId))
     .where(and(eq(C.slug, slug), eq(C.status, "approved")));
   if (!c) return null;
-  const [services, hours, equipment, technicians, checks] = await Promise.all([
+  const st = storage();
+  const [services, hours, equipment, technicians, checks, makes, photos] = await Promise.all([
     db.select().from(SV).where(and(eq(SV.centerId, c.id), eq(SV.active, true))).orderBy(asc(SV.category), asc(SV.nameEn)),
     db.select().from(H).where(eq(H.centerId, c.id)).orderBy(asc(H.weekday)),
     db.select({ kind: EQ.kind, details: EQ.details }).from(EQ).where(eq(EQ.centerId, c.id)).orderBy(asc(EQ.kind)),
@@ -112,8 +165,19 @@ export async function publicCenterBySlug(slug: string) {
       .select({ criterion: CK.criterion, checkedAt: CK.checkedAt })
       .from(CK)
       .where(and(eq(CK.centerId, c.id), eq(CK.passed, true))),
+    db.select({ id: MK.id, slug: MK.slug, nameAr: MK.nameAr, nameEn: MK.nameEn }).from(CM).innerJoin(MK, eq(MK.id, CM.makeId)).where(eq(CM.centerId, c.id)).orderBy(asc(MK.nameEn)),
+    db.select().from(PH).where(eq(PH.centerId, c.id)).orderBy(asc(PH.position), asc(PH.createdAt)),
   ]);
-  return { ...c, services, hours, equipment, technicians, checks };
+  return {
+    ...c,
+    services,
+    hours,
+    equipment,
+    technicians,
+    checks,
+    makes,
+    photos: photos.map((p) => ({ id: p.id, url: st.publicUrl(p.storageKey), thumbUrl: st.publicUrl(p.thumbKey), width: p.width, height: p.height })),
+  };
 }
 
 /** The caller's role at a center (null when not active staff). */
@@ -138,7 +202,7 @@ export async function centersForUser(userId: string) {
 export async function centerWorkspace(centerId: string) {
   const [center] = await db.select().from(C).where(eq(C.id, centerId));
   if (!center) return null;
-  const [services, hours, credentials, staff, checks, equipment, technicians] = await Promise.all([
+  const [services, hours, credentials, staff, checks, equipment, technicians, makes, photos] = await Promise.all([
     db.select().from(SV).where(eq(SV.centerId, centerId)).orderBy(asc(SV.category), asc(SV.nameEn)),
     db.select().from(H).where(eq(H.centerId, centerId)).orderBy(asc(H.weekday)),
     db
@@ -164,9 +228,23 @@ export async function centerWorkspace(centerId: string) {
     db.select().from(CK).where(eq(CK.centerId, centerId)),
     db.select().from(EQ).where(eq(EQ.centerId, centerId)).orderBy(asc(EQ.createdAt)),
     db.select().from(TECH).where(eq(TECH.centerId, centerId)).orderBy(asc(TECH.createdAt)),
+    db.select({ id: MK.id, nameAr: MK.nameAr, nameEn: MK.nameEn }).from(CM).innerJoin(MK, eq(MK.id, CM.makeId)).where(eq(CM.centerId, centerId)).orderBy(asc(MK.nameEn)),
+    db.select().from(PH).where(eq(PH.centerId, centerId)).orderBy(asc(PH.position), asc(PH.createdAt)),
   ]);
+  const st = storage();
   const checkMap = Object.fromEntries(checks.map((c) => [c.criterion, c])) as Partial<Record<CenterCriterion, (typeof checks)[number]>>;
-  return { center, services, hours, credentials, staff, checks: checkMap, equipment, technicians };
+  return {
+    center,
+    services,
+    hours,
+    credentials,
+    staff,
+    checks: checkMap,
+    equipment,
+    technicians,
+    makes,
+    photos: photos.map((p) => ({ id: p.id, thumbUrl: st.publicUrl(p.thumbKey) })),
+  };
 }
 
 export async function centerIdBySlug(slug: string) {

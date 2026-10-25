@@ -251,3 +251,37 @@ draft ──owner submits (server checks completeness)──▶ applied ──ad
   - The subscription type, which is billing-only and never an approval input.
 - These are covered by `tests/booking.test.ts`. No booking or payment tables exist yet. `features.careBooking` is `false` and the UI says booking and payment aren't available.
 - Tables to add when Stage 2 starts are listed in §3 (`bookings`, `booking_events`, `payments`, `commission_rules`, `commissions`, `subscription_plans`, `center_subscriptions`). They link `listing_id` and an owner vehicle, and keep payment state in `payments`, separate from booking state.
+
+## 14. Provider types (migration `0006_care_providers`)
+
+| Type | Criteria (all must pass) | Documents accepted + unexpired | Required to submit |
+|---|---|---|---|
+| `authorized_service` | documents_valid, address_confirmed, **authorization_verified**, terms_accepted | CR, tax card, **brand_authorization** | service, ≥1 make, CR, tax card, authorization doc |
+| `independent_workshop` | documents_valid, address_confirmed, technician_named, **service_scope**, terms_accepted | CR, tax card | service, technician, CR, tax card |
+| `inspection_center` | documents_valid, address_confirmed, technician_named, **inspection_equipment**, **reporting_process**, terms_accepted | CR, tax card, **sample_report** | service, technician, OBD + paint gauge + lift, CR, tax card, sample report |
+
+Any provider offering pre-purchase inspection also needs the inspection-equipment check.
+
+The provider type and name, city and address all lock after approval. For authorized centers, the makes lock too, because they are part of the authorization.
+
+**What's new**
+- `service_centers.category`, `latitude` and `longitude`. The pin comes only from a Google Maps link or coordinates the center pastes, and is rejected unless it's inside Egypt.
+- `center_makes`.
+- `center_photos`: public, re-encoded, EXIF stripped, max 12. The first photo is the cover. Admins can remove photos with a reason, and the removal is audited.
+- The new credential kind `sample_report`.
+- **Backfill:** existing centers that offer pre-purchase inspection became `inspection_center`; all others became `independent_workshop`.
+
+**Directory filters** (all in one SQL query, so the count matches the list):
+- `q`: name, area, address or governorate, with `ILIKE` wildcards escaped.
+- `city`, `area`, `provider`, `service` (the old `category` parameter still works), `make`.
+- `sort` (name / recently reviewed) and `page`.
+- Provider tabs show live approved counts.
+
+**Profiles show**
+- The provider type, the category-specific verification badge and its explanation, and the last review date.
+- Each confirmed criterion with its date.
+- Makes, photos, equipment, technicians (no names), services and prices.
+- Hours, contact details and the map pin.
+- What's available now (call or email only).
+
+**Promoted listings (future).** These would be a separate `center_promotions` table with a visible "مُروَّج / Promoted" label. They must never change `status`, verification badges or criteria, and never change the default "name" sort; they can appear only in a clearly labelled slot. Ratings, if added, would come only from completed bookings and be stored separately from verification.

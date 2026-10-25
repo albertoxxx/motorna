@@ -28,7 +28,9 @@ export type ValidationKey =
   | "hours"
   | "equipmentDetails"
   | "technicianName"
-  | "technicianYears";
+  | "technicianYears"
+  | "providerCategory"
+  | "mapLink";
 
 export const CONDITIONS = ["new", "used"] as const;
 export const TRANSMISSIONS = ["automatic", "manual"] as const;

@@ -5,7 +5,7 @@ import { Check, Circle } from "lucide-react";
 import { resolveLocale } from "@/i18n/server";
 import { requireUser } from "@/server/session";
 import { centerIdBySlug, centerWorkspace, staffRole } from "@/server/care";
-import { getCities } from "@/server/listings";
+import { getCities, getMakes } from "@/server/listings";
 import { canManageCenter, identityLocked, isPubliclyVisible, profileEditable, submissionGaps, SUBMITTABLE } from "@/lib/care";
 import { Badge } from "@/components/ui/badge";
 import { Notice } from "@/components/ui/states";
@@ -18,6 +18,8 @@ import { HoursEditor } from "@/components/care/hours-editor";
 import { DocsPanel } from "@/components/care/docs-panel";
 import { StaffPanel } from "@/components/care/staff-panel";
 import { SubmitApplicationButton } from "@/components/care/submit-button";
+import { MakesEditor } from "@/components/care/makes-editor";
+import { PhotosPanel } from "@/components/care/photos-panel";
 
 export const metadata: Metadata = { robots: { index: false } };
 
@@ -38,7 +40,7 @@ export default async function CenterDashboard({ params }: PageProps<"/[lang]/cen
   if (!centerId) notFound();
   const role = await staffRole(user.id, centerId);
   if (!role) redirect(`/${locale}`);
-  const [ws, cities] = await Promise.all([centerWorkspace(centerId), getCities()]);
+  const [ws, cities, allMakes] = await Promise.all([centerWorkspace(centerId), getCities(), getMakes()]);
   if (!ws) notFound();
   const { center: c } = ws;
   const D = dict.care.dash;
@@ -46,14 +48,18 @@ export default async function CenterDashboard({ params }: PageProps<"/[lang]/cen
   const editable = manage && profileEditable(c.status);
   const cdict = { care: dict.care, common: dict.common, validation: dict.validation, errors: dict.errors };
   const tone = c.status === "approved" ? "success" : c.status === "changes_requested" ? "warning" : c.status === "rejected" || c.status === "suspended" || c.status === "revoked" ? "danger" : "info";
-  const gaps = submissionGaps({ services: ws.services, equipment: ws.equipment, technicians: ws.technicians, credentials: ws.credentials });
+  const gaps = submissionGaps({ category: c.category, services: ws.services, makes: ws.makes, equipment: ws.equipment, technicians: ws.technicians, credentials: ws.credentials });
   const canSubmit = SUBMITTABLE.includes(c.status);
+  const offersInspection = ws.services.some((x) => x.category === "pre_purchase_inspection" && x.active);
   const checklist: { key: keyof typeof D.gaps; done: boolean; href: string }[] = [
     { key: "profile", done: true, href: "#profile" },
     { key: "services", done: !gaps.includes("services"), href: "#services" },
-    ...(ws.services.some((s) => s.category === "pre_purchase_inspection" && s.active) ? [{ key: "equipment" as const, done: !gaps.includes("equipment"), href: "#equipment" }] : []),
-    { key: "technicians", done: !gaps.includes("technicians"), href: "#technicians" },
+    ...(c.category === "authorized_service" ? [{ key: "makes" as const, done: !gaps.includes("makes"), href: "#makes" }] : []),
+    ...(c.category === "inspection_center" || offersInspection ? [{ key: "equipment" as const, done: !gaps.includes("equipment"), href: "#equipment" }] : []),
+    ...(c.category !== "authorized_service" ? [{ key: "technicians" as const, done: !gaps.includes("technicians"), href: "#technicians" }] : []),
     { key: "documents", done: !gaps.includes("documents"), href: "#docs" },
+    ...(c.category === "authorized_service" ? [{ key: "authorization" as const, done: !gaps.includes("authorization"), href: "#docs" }] : []),
+    ...(c.category === "inspection_center" ? [{ key: "sampleReport" as const, done: !gaps.includes("sampleReport"), href: "#docs" }] : []),
   ];
 
   return (
@@ -63,7 +69,7 @@ export default async function CenterDashboard({ params }: PageProps<"/[lang]/cen
         <h1 className="text-2xl font-bold sm:text-3xl"><bdi>{locale === "ar" ? c.nameAr : c.nameEn}</bdi></h1>
         <Badge tone={careStatusTone(c.status)}>{dict.care.enums.status[c.status]}</Badge>
       </div>
-      <p className="mt-1 text-sm text-ink-3">{D.role}: {dict.care.enums.staffRole[role]}</p>
+      <p className="mt-1 text-sm text-ink-3">{dict.care.providers[c.category].short} · {D.role}: {dict.care.enums.staffRole[role]}</p>
 
       <Notice tone={tone} className="mt-5">
         <p>{D.statusBody[c.status]}</p>
@@ -103,6 +109,12 @@ export default async function CenterDashboard({ params }: PageProps<"/[lang]/cen
         )}
         <Section id="services" title={D.servicesTitle}>
           <ServicesEditor locale={locale} dict={cdict} centerId={c.id} services={ws.services} editable={editable} />
+        </Section>
+        <Section id="makes" title={D.makesTitle}>
+          <MakesEditor locale={locale} dict={cdict} centerId={c.id} all={allMakes.map(({ id, nameAr, nameEn }) => ({ id, nameAr, nameEn }))} selected={ws.makes.map((m) => m.id)} editable={editable && !(c.category === "authorized_service" && identityLocked(c.status))} />
+        </Section>
+        <Section id="photos" title={D.photosTitle}>
+          <PhotosPanel dict={cdict} centerId={c.id} photos={ws.photos} editable={editable} />
         </Section>
         <Section id="equipment" title={D.equipmentTitle}>
           <EquipmentEditor dict={cdict} centerId={c.id} items={ws.equipment} editable={editable} />

@@ -114,6 +114,7 @@ export async function changeCenterStatus(centerId: string, action: string, reaso
         .limit(1),
     ]);
     const blockers = approvalBlockers({
+      category: c.category,
       checks: Object.fromEntries(checks.map((k) => [k.criterion, k.passed])),
       offersInspection: inspection.length > 0,
       credentials,
@@ -135,6 +136,20 @@ export async function changeCenterStatus(centerId: string, action: string, reaso
   refresh(c.slug);
   if (act !== "startReview") await notifyCenterStatus(centerId, act, note);
   return ok({ status: to });
+}
+
+/** Removes an inappropriate or misleading center photo (moderation). */
+export async function adminRemoveCenterPhoto(photoId: string, reason: string): Promise<ActionResult<null>> {
+  const a = await requireAdminAction();
+  if (a.error) return fail(a.error);
+  const r = reasonSchema.safeParse(reason);
+  if (!r.success) return fail("validation", { reason: "required" });
+  const [ph] = await db.delete(schema.centerPhotos).where(eq(schema.centerPhotos.id, photoId)).returning({ centerId: schema.centerPhotos.centerId });
+  if (!ph) return fail("notFound");
+  const [c] = await db.select({ slug: C.slug }).from(C).where(eq(C.id, ph.centerId));
+  await audit(a.admin.id, "center.photo.moderate", "service_center", ph.centerId, { photoId, reason: r.data });
+  refresh(c.slug);
+  return ok(null);
 }
 
 /** Internal reviewer note. Never shown to the center; there is no edit or delete path. */

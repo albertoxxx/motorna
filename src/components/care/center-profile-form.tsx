@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { applyCenter, updateCenterProfile } from "@/server/actions/care";
 import { Button } from "@/components/ui/button";
 import { Checkbox, Field, Input, Select, Textarea } from "@/components/ui/field";
-import { VEHICLE_TYPES } from "@/lib/care";
+import { PROVIDER_CATEGORIES, VEHICLE_TYPES } from "@/lib/care";
 import type { ValidationKey } from "@/lib/validation";
 import { useAction, type CareDict, type City } from "./shared";
 
@@ -21,6 +21,9 @@ export type CenterProfileValues = {
   description: string;
   vehicleTypes: string[];
   quotationPolicy: string;
+  category: string;
+  latitude: number | null;
+  longitude: number | null;
 };
 
 /** Used both for a new application (no centerId) and for editing an existing center. */
@@ -73,6 +76,23 @@ export function CenterProfileForm({
   return (
     <form onSubmit={submit} className="grid gap-5 sm:grid-cols-2" noValidate>
       {identityLocked && <p className="text-sm text-ink-3 sm:col-span-2">{dict.care.dash.identityLocked}</p>}
+      <fieldset className="sm:col-span-2">
+        <legend className="mb-1 text-sm font-medium">{P.category}<span className="ms-0.5 text-danger-600" aria-hidden>*</span></legend>
+        <p className="mb-3 text-sm text-ink-3">{P.categoryHint}</p>
+        <div className="grid gap-2 sm:grid-cols-3">
+          {PROVIDER_CATEGORIES.map((c) => (
+            <label key={c} className="flex cursor-pointer flex-col gap-1 rounded-[var(--radius-md)] border border-line-strong p-3 text-sm has-[:checked]:border-brand-600 has-[:checked]:bg-brand-50 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-70">
+              <span className="flex items-center gap-2 font-semibold">
+                <input type="radio" name="category" value={c} defaultChecked={(v?.category ?? "") === c} disabled={identityLocked && v?.category !== c} className="size-4 accent-brand-600" required />
+                {dict.care.providers[c].name}
+              </span>
+              <span className="text-ink-2">{dict.care.providers[c].desc}</span>
+            </label>
+          ))}
+        </div>
+        {identityLocked && <input type="hidden" name="category" value={v?.category} />}
+        {errors.category && <p className="mt-1 text-sm text-danger-700" role="alert">{err("category")}</p>}
+      </fieldset>
       <Field label={P.nameAr} htmlFor="nameAr" error={err("nameAr")} {...req}>
         <Input id="nameAr" name="nameAr" dir="rtl" defaultValue={v?.nameAr} maxLength={80} readOnly={identityLocked} invalid={!!errors.nameAr} />
       </Field>
@@ -97,6 +117,9 @@ export function CenterProfileForm({
       </Field>
       <Field className="sm:col-span-2" label={P.address} htmlFor="address" error={err("address")} {...req}>
         <Input id="address" name="address" dir="auto" defaultValue={v?.address} maxLength={200} readOnly={identityLocked} invalid={!!errors.address} />
+      </Field>
+      <Field className="sm:col-span-2" label={P.mapLink} htmlFor="mapLink" hint={P.mapLinkHint} error={err("mapLink")} {...opt}>
+        <Input id="mapLink" name="mapLink" dir="ltr" defaultValue={v?.latitude != null && v?.longitude != null ? `${v.latitude}, ${v.longitude}` : ""} invalid={!!errors.mapLink} />
       </Field>
       <Field label={P.phone} htmlFor="phone" hint={P.phoneHint} error={err("phone")} {...req}>
         <Input id="phone" name="phone" type="tel" dir="ltr" inputMode="tel" defaultValue={v?.phone} invalid={!!errors.phone} />

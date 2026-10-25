@@ -24,7 +24,7 @@ import {
 } from "@/lib/care";
 import { staffRole } from "@/server/care";
 
-const { serviceCenters: C, centerStaff: ST, centerServices: SV, centerHours: H, users: U, centerEquipment: EQ, centerTechnicians: TECH, centerCredentials: CRED } = schema;
+const { serviceCenters: C, centerStaff: ST, centerServices: SV, centerHours: H, users: U, centerEquipment: EQ, centerTechnicians: TECH, centerCredentials: CRED, centerMakes: MAKES, centerPhotos: PH } = schema;
 
 function slugify(name: string) {
   return name
@@ -69,13 +69,13 @@ export async function applyCenter(raw: Record<string, unknown>): Promise<ActionR
     .where(and(eq(ST.userId, user.id), eq(ST.role, "owner"), inArray(C.status, OPEN_APPLICATION)));
   if (open) return fail("centerPending");
   if (!(await rateLimit("centerApply", user.id))) return fail("rateLimited");
-  const { acceptTerms: _accepted, ...profile } = parsed.data;
+  const { acceptTerms: _accepted, mapLink, ...profile } = parsed.data;
   void _accepted;
   const slug = `${slugify(profile.nameEn) || "center"}-${crypto.randomUUID().slice(0, 6)}`;
   const id = await db.transaction(async (tx) => {
     const [c] = await tx
       .insert(C)
-      .values({ ...profile, area: profile.area ?? null, email: profile.email ?? null, website: profile.website ?? null, slug, status: "draft", createdById: user.id })
+      .values({ ...profile, latitude: mapLink?.latitude ?? null, longitude: mapLink?.longitude ?? null, area: profile.area ?? null, email: profile.email ?? null, website: profile.website ?? null, slug, status: "draft", createdById: user.id })
       .returning({ id: C.id });
     await tx.insert(ST).values({ centerId: c.id, userId: user.id, role: "owner", addedById: user.id });
     await audit(user.id, "center.draft", "service_center", c.id, { name: profile.nameEn, termsAcceptedAt: new Date().toISOString() }, tx);
@@ -93,15 +93,16 @@ export async function updateCenterProfile(centerId: string, raw: Record<string, 
   const parsed = centerProfileSchema.safeParse(raw);
   if (!parsed.success) return fail("validation", fieldErrors(parsed.error));
   if (!(await rateLimit("centerEdit", s.user.id))) return fail("rateLimited");
-  const p = parsed.data;
+  const { mapLink, ...p } = parsed.data;
   const locked = identityLocked(s.center.status);
-  if (locked && (p.nameAr !== s.center.nameAr || p.nameEn !== s.center.nameEn || p.cityId !== s.center.cityId || p.address !== s.center.address)) {
+  // Provider category decides the verification type, so it locks with the identity fields.
+  if (locked && (p.nameAr !== s.center.nameAr || p.nameEn !== s.center.nameEn || p.cityId !== s.center.cityId || p.address !== s.center.address || p.category !== s.center.category)) {
     return fail("identityLocked");
   }
   await db.transaction(async (tx) => {
     await tx
       .update(C)
-      .set({ ...p, area: p.area ?? null, email: p.email ?? null, website: p.website ?? null })
+      .set({ ...p, latitude: mapLink?.latitude ?? null, longitude: mapLink?.longitude ?? null, area: p.area ?? null, email: p.email ?? null, website: p.website ?? null })
       .where(eq(C.id, centerId));
     await audit(s.user.id, "center.update", "service_center", centerId, {}, tx);
   });
@@ -117,13 +118,14 @@ export async function submitCenter(centerId: string): Promise<ActionResult<null>
   const s = await requireStaff(centerId, ["owner"]);
   if (s.error) return fail(s.error);
   if (!SUBMITTABLE.includes(s.center.status)) return fail("invalidTransition");
-  const [services, equipment, technicians, credentials] = await Promise.all([
+  const [services, equipment, technicians, credentials, makes] = await Promise.all([
     db.select({ category: SV.category, active: SV.active }).from(SV).where(eq(SV.centerId, centerId)),
     db.select({ kind: EQ.kind }).from(EQ).where(eq(EQ.centerId, centerId)),
     db.select({ active: TECH.active }).from(TECH).where(eq(TECH.centerId, centerId)),
     db.select({ kind: CRED.kind, reviewState: CRED.reviewState }).from(CRED).where(eq(CRED.centerId, centerId)),
+    db.select({ makeId: MAKES.makeId }).from(MAKES).where(eq(MAKES.centerId, centerId)),
   ]);
-  if (submissionGaps({ services, equipment, technicians, credentials }).length) return fail("applicationIncomplete");
+  if (submissionGaps({ category: s.center.category, services, makes, equipment, technicians, credentials }).length) return fail("applicationIncomplete");
   await db.transaction(async (tx) => {
     await tx
       .update(C)
@@ -287,6 +289,55 @@ export async function removeCenterStaff(centerId: string, userId: string): Promi
     .returning({ userId: ST.userId });
   if (!res.length) return fail("notFound");
   await audit(s.user.id, "center.staff.remove", "service_center", centerId, { userId });
+  revalidateCenter(s.center.slug);
+  return ok(null);
+}
+
+/**
+ * Replaces the center's supported makes. For authorized centers these must match the
+ * authorization evidence, which the admin checks (criterion authorization_verified).
+ * Changing makes after approval is audited; authorized centers go back to review.
+ */
+export async function setCenterMakes(centerId: string, makeIds: number[]): Promise<ActionResult<null>> {
+  const s = await requireStaff(centerId, ["owner", "manager"]);
+  if (s.error) return fail(s.error);
+  if (!profileEditable(s.center.status)) return fail("invalidTransition");
+  if (!Array.isArray(makeIds) || makeIds.length > 100 || !makeIds.every((n) => Number.isInteger(n) && n > 0 && n <= 32767)) return fail("validation");
+  const ids = [...new Set(makeIds)];
+  if (ids.length) {
+    const found = await db.select({ id: schema.vehicleMakes.id }).from(schema.vehicleMakes).where(inArray(schema.vehicleMakes.id, ids));
+    if (found.length !== ids.length) return fail("validation");
+  }
+  if (s.center.category === "authorized_service" && identityLocked(s.center.status)) return fail("identityLocked");
+  await db.transaction(async (tx) => {
+    await tx.delete(MAKES).where(eq(MAKES.centerId, centerId));
+    if (ids.length) await tx.insert(MAKES).values(ids.map((makeId) => ({ centerId, makeId })));
+    await audit(s.user.id, "center.makes", "service_center", centerId, { makeIds: ids }, tx);
+  });
+  revalidateCenter(s.center.slug);
+  return ok(null);
+}
+
+export async function deleteCenterPhoto(centerId: string, photoId: string): Promise<ActionResult<null>> {
+  const s = await requireStaff(centerId, ["owner", "manager"]);
+  if (s.error) return fail(s.error);
+  const res = await db.delete(PH).where(and(eq(PH.id, photoId), eq(PH.centerId, centerId))).returning({ id: PH.id });
+  if (!res.length) return fail("notFound");
+  await audit(s.user.id, "center.photo.remove", "service_center", centerId, { photoId });
+  revalidateCenter(s.center.slug);
+  return ok(null);
+}
+
+/** Moves a photo to the first position (cover). */
+export async function makeCenterPhotoCover(centerId: string, photoId: string): Promise<ActionResult<null>> {
+  const s = await requireStaff(centerId, ["owner", "manager"]);
+  if (s.error) return fail(s.error);
+  const photos = await db.select({ id: PH.id }).from(PH).where(eq(PH.centerId, centerId)).orderBy(PH.position, PH.createdAt);
+  if (!photos.some((p) => p.id === photoId)) return fail("notFound");
+  const order = [photoId, ...photos.map((p) => p.id).filter((id) => id !== photoId)];
+  await db.transaction(async (tx) => {
+    for (const [i, id] of order.entries()) await tx.update(PH).set({ position: i }).where(eq(PH.id, id));
+  });
   revalidateCenter(s.center.slug);
   return ok(null);
 }

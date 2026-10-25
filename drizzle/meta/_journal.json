@@ -43,6 +43,13 @@
       "when": 1792884569832,
       "tag": "0005_listing_phone_consent",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792915369555,
+      "tag": "0006_care_providers",
+      "breakpoints": true
     }
   ]
 }

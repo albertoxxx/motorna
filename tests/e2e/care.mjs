@@ -81,6 +81,8 @@ try {
   await clickText(O.page, "Create application draft");
   await waitText(O.page, "You need to agree before submitting");
   ok("application requires accepting the terms");
+  await O.page.click("input[name=category][value=inspection_center]");
+  await O.page.type("#mapLink", "https://www.google.com/maps/place/X/@31.2156,29.9553,17z");
   await O.page.click("input[name=acceptTerms]");
   await clickText(O.page, "Create application draft");
   await O.page.waitForFunction(() => /\/en\/center\/[a-z0-9-]+$/.test(location.pathname), { timeout: 30000 });
@@ -136,6 +138,12 @@ try {
     await new Promise((r) => setTimeout(r, 900));
   }
   await waitText(O.page, "Paint-thickness gauge");
+  // Supported makes
+  await O.page.type("input[aria-label='Search makes']", "Toyota");
+  await O.page.evaluate(() => [...document.querySelectorAll("#makes label")].find((l) => l.textContent.trim() === "Toyota")?.querySelector("input")?.click());
+  await O.page.evaluate(() => [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Save makes")?.click());
+  await waitText(O.page, "Saved");
+  ok("owner set supported makes");
   ok("owner declared the core inspection equipment");
   // Technician
   await O.page.type("#t-name", "Mahmoud Adel");
@@ -146,7 +154,7 @@ try {
   ok("owner added a responsible technician");
 
   // Documents
-  for (const kind of ["commercial_register", "tax_card"]) {
+  for (const kind of ["commercial_register", "tax_card", "sample_report"]) {
     await O.page.select("#doc-kind", kind);
     const input = await O.page.$("#doc-file");
     await input.uploadFile(pdf);
@@ -154,7 +162,7 @@ try {
     await waitText(O.page, "Document uploaded");
     await new Promise((r) => setTimeout(r, 800));
   }
-  await O.page.waitForFunction(() => document.querySelectorAll("a[href^='/api/care/credentials/']").length >= 2);
+  await O.page.waitForFunction(() => document.querySelectorAll("a[href^='/api/care/credentials/']").length >= 3);
   const docHref = await O.page.$eval("a[href^='/api/care/credentials/']", (a) => a.getAttribute("href"));
   ok("owner uploaded commercial register and tax card (private)");
   const own = await O.page.evaluate(async (h) => (await fetch(h)).status, docHref);
@@ -202,14 +210,14 @@ try {
   await A.page.reload({ waitUntil: "networkidle0" });
   await clickText(A.page, "Start review");
   await waitText(A.page, "Under review");
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < 3; i++) {
     await clickText(A.page, "Accept");
     await new Promise((r) => setTimeout(r, 1200));
   }
-  await A.page.waitForFunction(() => document.body.innerText.split("Accepted").length - 1 >= 2);
+  await A.page.waitForFunction(() => document.body.innerText.split("Accepted").length - 1 >= 3);
   ok("admin accepted both documents");
   const n = await A.page.$$eval("button", (bs) => bs.filter((b) => b.textContent.trim() === "Met").length);
-  assert(n === 5, "inspection center shows all 5 criteria (equipment applies)");
+  assert(n === 6, "inspection center shows its 6 criteria (equipment and reporting process apply)");
   for (let i = 0; i < n; i++) {
     const btns = await A.page.$$("button");
     const met = [];
@@ -217,7 +225,7 @@ try {
     await met[0].click();
     await new Promise((r) => setTimeout(r, 1000));
   }
-  await A.page.waitForFunction(() => [...document.querySelectorAll("button[aria-pressed=true]")].filter((b) => b.textContent.trim() === "Met").length === 5);
+  await A.page.waitForFunction(() => [...document.querySelectorAll("button[aria-pressed=true]")].filter((b) => b.textContent.trim() === "Met").length === 6);
   await A.page.waitForFunction(() => [...document.querySelectorAll("button")].some((b) => b.textContent.trim() === "Approve center" && !b.disabled));
   await clickText(A.page, "Approve center");
   await A.page.waitForFunction(() => !document.body.innerText.includes("Approve center"));
@@ -233,6 +241,10 @@ try {
   // Public
   await go(P.page, "/en/care");
   assert((await text(P.page)).includes(nameEn), "approved center appears in the English directory");
+  await go(P.page, `/en/care?provider=inspection_center&make=toyota&q=${encodeURIComponent(nameEn)}`);
+  assert((await text(P.page)).includes(nameEn), "provider + make + name search finds the center");
+  await go(P.page, `/en/care?provider=authorized_service&q=${encodeURIComponent(nameEn)}`);
+  assert(!(await text(P.page)).includes(nameEn), "provider filter excludes other provider types");
   await go(P.page, "/en/care?category=oil_change");
   assert(!(await text(P.page)).includes(nameEn), "category filter excludes centers without that service");
   await go(P.page, "/en/care?city=alexandria&area=Smouha&category=pre_purchase_inspection");
@@ -248,6 +260,9 @@ try {
   const detail = await text(P.page);
   assert(detail.includes("فحص شامل قبل الشراء") && detail.includes("1,500"), "center page lists the service and its price");
   assert(detail.includes("آخر مراجعة"), "center page shows the latest review date");
+  assert(detail.includes("قدرات الفحص اتراجعت") && detail.includes("مركز فحص"), "profile shows provider type and its verification label");
+  assert(detail.includes("تويوتا"), "profile lists supported makes");
+  assert(detail.includes("افتح مكان المركز على الخريطة"), "profile links to the pinned map location");
   assert(detail.includes("مش ترخيص حكومي"), "center page distinguishes MOTORNA review from government licensing");
   assert(!detail.includes("Mahmoud Adel"), "technician names are not public");
   assert(!(await P.page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)), "no horizontal overflow at 390px (ar center page)");

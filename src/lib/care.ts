@@ -37,23 +37,53 @@ export type EquipmentKind = (typeof EQUIPMENT_KINDS)[number];
 /** Equipment a pre-purchase inspection center must declare before submitting. */
 export const INSPECTION_EQUIPMENT: EquipmentKind[] = ["obd_scanner", "paint_thickness_gauge", "lift"];
 
-export const CREDENTIAL_KINDS = ["commercial_register", "tax_card", "brand_authorization", "other"] as const;
+export const CREDENTIAL_KINDS = ["commercial_register", "tax_card", "brand_authorization", "sample_report", "other"] as const;
+
+/**
+ * Provider type decides which verification applies:
+ * - authorized_service: current manufacturer/distributor authorization evidence reviewed
+ * - independent_workshop: business identity, location and defined service scope reviewed
+ * - inspection_center: inspection capability, equipment and reporting process reviewed
+ */
+export const PROVIDER_CATEGORIES = ["authorized_service", "independent_workshop", "inspection_center"] as const;
+export type ProviderCategory = (typeof PROVIDER_CATEGORIES)[number];
 export const STAFF_ROLES = ["owner", "manager", "technician"] as const;
 export type StaffRole = (typeof STAFF_ROLES)[number];
 
-/** Admin checklist. Every applicable criterion must pass before approval. */
+/** Admin checklist. Every criterion that applies to the provider's category must pass before approval. */
 export const CENTER_CRITERIA = [
   "documents_valid",
   "address_confirmed",
+  "authorization_verified",
   "technician_named",
+  "service_scope",
   "inspection_equipment",
+  "reporting_process",
   "terms_accepted",
 ] as const;
 export type CenterCriterion = (typeof CENTER_CRITERIA)[number];
 
-/** Inspection equipment only matters for centers that offer pre-purchase inspection. */
-export function applicableCriteria(offersInspection: boolean): CenterCriterion[] {
-  return CENTER_CRITERIA.filter((c) => c !== "inspection_equipment" || offersInspection);
+const BY_CATEGORY: Record<ProviderCategory, CenterCriterion[]> = {
+  authorized_service: ["documents_valid", "address_confirmed", "authorization_verified", "terms_accepted"],
+  independent_workshop: ["documents_valid", "address_confirmed", "technician_named", "service_scope", "terms_accepted"],
+  inspection_center: ["documents_valid", "address_confirmed", "technician_named", "inspection_equipment", "reporting_process", "terms_accepted"],
+};
+
+/** Criteria for this provider. Any provider that offers pre-purchase inspection also needs the equipment check. */
+export function applicableCriteria(category: ProviderCategory, offersInspection: boolean): CenterCriterion[] {
+  const list = [...BY_CATEGORY[category]];
+  if (offersInspection && !list.includes("inspection_equipment")) list.splice(list.length - 1, 0, "inspection_equipment");
+  return CENTER_CRITERIA.filter((c) => list.includes(c));
+}
+
+/** Documents that must be uploaded (to submit) and accepted + unexpired (to approve), per category. */
+export function requiredDocuments(category: ProviderCategory): string[] {
+  return [
+    "commercial_register",
+    "tax_card",
+    ...(category === "authorized_service" ? ["brand_authorization"] : []),
+    ...(category === "inspection_center" ? ["sample_report"] : []),
+  ];
 }
 
 export type AdminCenterAction = "startReview" | "requestChanges" | "approve" | "reject" | "suspend" | "reinstate" | "revoke";
@@ -86,29 +116,36 @@ export const OPEN_APPLICATION: CenterStatus[] = ["draft", "applied", "under_revi
 /** Waiting for an admin. */
 export const IN_QUEUE: CenterStatus[] = ["applied", "under_review"];
 
-export type SubmissionGap = "services" | "equipment" | "technicians" | "documents";
+export type SubmissionGap = "services" | "makes" | "equipment" | "technicians" | "documents" | "authorization" | "sampleReport";
 
 /** What the applicant still has to add before submitting. Empty array = ready to submit. */
 export function submissionGaps(input: {
+  category: ProviderCategory;
   services: { category: string; active: boolean }[];
+  makes: unknown[];
   equipment: { kind: string }[];
   technicians: { active: boolean }[];
   credentials: { kind: string; reviewState: string }[];
 }): SubmissionGap[] {
   const gaps: SubmissionGap[] = [];
   const active = input.services.filter((s) => s.active);
+  const offersInspection = active.some((s) => s.category === "pre_purchase_inspection");
   if (active.length === 0) gaps.push("services");
-  if (active.some((s) => s.category === "pre_purchase_inspection") && !INSPECTION_EQUIPMENT.every((k) => input.equipment.some((e) => e.kind === k))) {
+  if (input.category === "authorized_service" && input.makes.length === 0) gaps.push("makes");
+  if ((input.category === "inspection_center" || offersInspection) && !INSPECTION_EQUIPMENT.every((k) => input.equipment.some((e) => e.kind === k))) {
     gaps.push("equipment");
   }
-  if (!input.technicians.some((t) => t.active)) gaps.push("technicians");
+  if (input.category !== "authorized_service" && !input.technicians.some((t) => t.active)) gaps.push("technicians");
   const has = (k: string) => input.credentials.some((c) => c.kind === k && c.reviewState !== "rejected");
   if (!has("commercial_register") || !has("tax_card")) gaps.push("documents");
+  if (input.category === "authorized_service" && !has("brand_authorization")) gaps.push("authorization");
+  if (input.category === "inspection_center" && !has("sample_report")) gaps.push("sampleReport");
   return gaps;
 }
 
-/** What still blocks approval. Empty array = the admin may approve. */
+/** What still blocks approval. Empty array = the admin may approve. Never depends on payments or subscriptions. */
 export function approvalBlockers(input: {
+  category: ProviderCategory;
   checks: Partial<Record<CenterCriterion, boolean>>;
   offersInspection: boolean;
   credentials: { kind: string; reviewState: string; expiresAt: Date | null }[];
@@ -116,8 +153,8 @@ export function approvalBlockers(input: {
 }): string[] {
   const now = input.now ?? new Date();
   const blockers: string[] = [];
-  for (const c of applicableCriteria(input.offersInspection)) if (input.checks[c] !== true) blockers.push(`check:${c}`);
-  for (const kind of ["commercial_register", "tax_card"]) {
+  for (const c of applicableCriteria(input.category, input.offersInspection)) if (input.checks[c] !== true) blockers.push(`check:${c}`);
+  for (const kind of requiredDocuments(input.category)) {
     const okDoc = input.credentials.some((d) => d.kind === kind && d.reviewState === "accepted" && (!d.expiresAt || d.expiresAt > now));
     if (!okDoc) blockers.push(`document:${kind}`);
   }
@@ -164,7 +201,38 @@ const text = (min: number, max: number, key: ValidationKey) =>
 const optional = (max: number) =>
   z.preprocess((v) => (typeof v === "string" ? v.trim() || undefined : undefined), z.string().max(max).optional());
 
+/**
+ * Extracts a pin from a pasted Google Maps link ("@lat,lng", "q=lat,lng", "!3dLAT!4dLNG") or "lat, lng".
+ * Returns null when nothing usable (or outside Egypt) is found — we never guess a location.
+ */
+export function parseMapCoords(input: string): { latitude: number; longitude: number } | null {
+  const s = input.trim();
+  const patterns = [/@(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/, /[?&](?:q|query|ll|destination)=(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/, /!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/, /^(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)$/];
+  for (const re of patterns) {
+    const m = s.match(re);
+    if (m) {
+      const latitude = Number(m[1]);
+      const longitude = Number(m[2]);
+      if (latitude >= 21 && latitude <= 32 && longitude >= 24 && longitude <= 37) return { latitude, longitude };
+      return null;
+    }
+  }
+  return null;
+}
+
 export const centerProfileSchema = z.object({
+  category: z.enum(PROVIDER_CATEGORIES, { error: "providerCategory" }),
+  mapLink: z
+    .preprocess((v) => (typeof v === "string" ? v.trim() : ""), z.string().max(2000))
+    .transform((v, ctx) => {
+      if (!v) return null;
+      const c = parseMapCoords(v);
+      if (!c) {
+        ctx.addIssue({ code: "custom", message: "mapLink" });
+        return z.NEVER;
+      }
+      return c;
+    }),
   nameAr: text(2, 80, "centerName"),
   nameEn: text(2, 80, "centerName"),
   cityId: z.coerce.number({ error: "required" }).int().positive({ error: "required" }),
