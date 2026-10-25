@@ -7,7 +7,11 @@ import { Notice } from "@/components/ui/states";
 import { careStatusTone } from "@/components/care/status";
 import { AdminRemovePhoto, CenterStatusActions, CheckRow, CredentialReview, ReviewNoteForm } from "@/components/care/admin-center";
 import { applicableCriteria, approvalBlockers } from "@/lib/care";
-import { formatDate, formatPrice } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { bookingSettings } from "@/server/bookings";
+import { PilotSwitch } from "@/components/care/booking-admin-ui";
+import { servicePriceText } from "@/components/care/service-price";
+import Link from "next/link";
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
@@ -26,7 +30,7 @@ export default async function AdminCenterPage({ params }: PageProps<"/[lang]/adm
   await requireAdmin(locale);
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  const [ws, history, notes] = await Promise.all([centerWorkspace(id), centerAudit(id), reviewNotes(id)]);
+  const [ws, history, notes, bs] = await Promise.all([centerWorkspace(id), centerAudit(id), reviewNotes(id), bookingSettings(id)]);
   if (!ws) notFound();
   const { center: c } = ws;
   const K = dict.care;
@@ -54,6 +58,17 @@ export default async function AdminCenterPage({ params }: PageProps<"/[lang]/adm
         {c.statusReason && <p className="mt-1 text-sm text-ink-3">{K.dash.reason}: <bdi>{c.statusReason}</bdi></p>}
         {isDraft && <Notice tone="warning" className="mt-3">{A.draftNotice}</Notice>}
       </div>
+
+      <Box title={dict.booking.admin.pilot} hint={dict.booking.admin.pilotHelp}>
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+          <div>
+            <p className="font-medium">{bs.pilotEnabled ? dict.booking.admin.pilotOnSince.replace("{date}", bs.pilotEnabledAt ? formatDate(bs.pilotEnabledAt, locale) : "—") : dict.booking.admin.pilotOffState}</p>
+            <p className="text-ink-3">{dict.booking.admin.centerAccepting.replace("{v}", bs.accepting ? dict.booking.admin.yes : dict.booking.admin.no)}</p>
+            <Link href={`/${locale}/admin/commission/${c.id}`} className="mt-1 inline-block font-medium text-brand-700 underline">{dict.booking.commission.agreements}</Link>
+          </div>
+          <PilotSwitch dict={{ booking: dict.booking, errors: dict.errors, common: dict.common, care: dict.care }} centerId={c.id} enabled={bs.pilotEnabled} approved={c.status === "approved"} />
+        </div>
+      </Box>
 
       <Box title={K.dash.profile}>
         <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
@@ -91,7 +106,7 @@ export default async function AdminCenterPage({ params }: PageProps<"/[lang]/adm
             <ul className="flex flex-col gap-1.5 text-sm">
               {ws.services.map((s) => (
                 <li key={s.id} className={s.active ? "" : "text-ink-3 line-through"}>
-                  {K.enums.category[s.category]} — <bdi>{s.nameEn}</bdi> — <span className="tabular">{s.priceMode === "fixed" && s.priceEgp != null ? formatPrice(s.priceEgp, locale) : D.onQuotation}</span>
+                  {K.enums.category[s.category]} — <bdi>{s.nameEn}</bdi> — <span className="tabular">{servicePriceText(s, locale, dict.booking)}</span>
                 </li>
               ))}
             </ul>

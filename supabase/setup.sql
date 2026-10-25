@@ -1,4 +1,4 @@
--- MOTORNA database setup (generated 2026-10-24)
+-- MOTORNA database setup (generated 2026-10-25)
 -- Paste into Supabase → SQL Editor → Run. Safe to run once on an empty project.
 BEGIN;
 
@@ -269,6 +269,642 @@ ALTER TABLE "vehicle_models" ADD COLUMN "created_by_id" text;
 -- 0002_known_defects.sql
 ALTER TABLE "listings" ADD COLUMN "known_defects" text;
 ALTER TABLE "listings" ADD CONSTRAINT "listings_known_defects_length" CHECK ("listings"."known_defects" IS NULL OR char_length("listings"."known_defects") <= 2000);
+
+-- 0003_care_centers.sql
+CREATE TYPE "public"."care_category" AS ENUM('pre_purchase_inspection', 'oil_change', 'routine_maintenance', 'diagnostics', 'brakes', 'tires', 'air_conditioning', 'electrical', 'bodywork', 'other');
+CREATE TYPE "public"."center_staff_role" AS ENUM('owner', 'manager', 'technician');
+CREATE TYPE "public"."center_status" AS ENUM('applied', 'under_review', 'approved', 'suspended', 'revoked', 'rejected');
+CREATE TYPE "public"."credential_kind" AS ENUM('commercial_register', 'tax_card', 'brand_authorization', 'other');
+CREATE TYPE "public"."price_mode" AS ENUM('fixed', 'quote');
+CREATE TYPE "public"."review_state" AS ENUM('pending', 'accepted', 'rejected');
+CREATE TABLE "center_approval_checks" (
+	"center_id" uuid NOT NULL,
+	"criterion" text NOT NULL,
+	"passed" boolean NOT NULL,
+	"note" text,
+	"checked_by_id" text NOT NULL,
+	"checked_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "center_approval_checks_center_id_criterion_pk" PRIMARY KEY("center_id","criterion")
+);
+
+CREATE TABLE "center_credentials" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"center_id" uuid NOT NULL,
+	"kind" "credential_kind" NOT NULL,
+	"number" text,
+	"file_key" text NOT NULL,
+	"content_type" text NOT NULL,
+	"expires_at" timestamp with time zone,
+	"review_state" "review_state" DEFAULT 'pending' NOT NULL,
+	"reviewed_by_id" text,
+	"reviewed_at" timestamp with time zone,
+	"review_note" text,
+	"uploaded_by_id" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE "center_hours" (
+	"center_id" uuid NOT NULL,
+	"weekday" smallint NOT NULL,
+	"opens" text NOT NULL,
+	"closes" text NOT NULL,
+	CONSTRAINT "center_hours_center_id_weekday_pk" PRIMARY KEY("center_id","weekday"),
+	CONSTRAINT "center_hours_weekday" CHECK ("center_hours"."weekday" BETWEEN 0 AND 6),
+	CONSTRAINT "center_hours_format" CHECK ("center_hours"."opens" ~ '^[0-2][0-9]:[0-5][0-9]$' AND "center_hours"."closes" ~ '^[0-2][0-9]:[0-5][0-9]$' AND "center_hours"."opens" < "center_hours"."closes")
+);
+
+CREATE TABLE "center_services" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"center_id" uuid NOT NULL,
+	"category" "care_category" NOT NULL,
+	"name_ar" text NOT NULL,
+	"name_en" text NOT NULL,
+	"price_mode" "price_mode" NOT NULL,
+	"price_egp" integer,
+	"duration_min" smallint DEFAULT 60 NOT NULL,
+	"active" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "center_services_price" CHECK (("center_services"."price_mode" = 'quote' AND "center_services"."price_egp" IS NULL) OR ("center_services"."price_mode" = 'fixed' AND "center_services"."price_egp" BETWEEN 1 AND 1000000)),
+	CONSTRAINT "center_services_duration" CHECK ("center_services"."duration_min" BETWEEN 10 AND 1440)
+);
+
+CREATE TABLE "center_staff" (
+	"center_id" uuid NOT NULL,
+	"user_id" text NOT NULL,
+	"role" "center_staff_role" NOT NULL,
+	"active" boolean DEFAULT true NOT NULL,
+	"added_by_id" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "center_staff_center_id_user_id_pk" PRIMARY KEY("center_id","user_id")
+);
+
+CREATE TABLE "service_centers" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"slug" text NOT NULL,
+	"name_ar" text NOT NULL,
+	"name_en" text NOT NULL,
+	"city_id" smallint NOT NULL,
+	"area" text,
+	"address" text NOT NULL,
+	"phone" text NOT NULL,
+	"email" text,
+	"website" text,
+	"description" text DEFAULT '' NOT NULL,
+	"vehicle_types" text[] DEFAULT '{}'::text[] NOT NULL,
+	"quotation_policy" text DEFAULT '' NOT NULL,
+	"status" "center_status" DEFAULT 'applied' NOT NULL,
+	"status_reason" text,
+	"approved_at" timestamp with time zone,
+	"approved_by_id" text,
+	"created_by_id" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "service_centers_slug_unique" UNIQUE("slug"),
+	CONSTRAINT "service_centers_description_length" CHECK (char_length("service_centers"."description") <= 3000)
+);
+
+ALTER TABLE "center_approval_checks" ADD CONSTRAINT "center_approval_checks_center_id_service_centers_id_fk" FOREIGN KEY ("center_id") REFERENCES "public"."service_centers"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "center_approval_checks" ADD CONSTRAINT "center_approval_checks_checked_by_id_users_id_fk" FOREIGN KEY ("checked_by_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "center_credentials" ADD CONSTRAINT "center_credentials_center_id_service_centers_id_fk" FOREIGN KEY ("center_id") REFERENCES "public"."service_centers"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "center_credentials" ADD CONSTRAINT "center_credentials_reviewed_by_id_users_id_fk" FOREIGN KEY ("reviewed_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "center_credentials" ADD CONSTRAINT "center_credentials_uploaded_by_id_users_id_fk" FOREIGN KEY ("uploaded_by_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "center_hours" ADD CONSTRAINT "center_hours_center_id_service_centers_id_fk" FOREIGN KEY ("center_id") REFERENCES "public"."service_centers"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "center_services" ADD CONSTRAINT "center_services_center_id_service_centers_id_fk" FOREIGN KEY ("center_id") REFERENCES "public"."service_centers"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "center_staff" ADD CONSTRAINT "center_staff_center_id_service_centers_id_fk" FOREIGN KEY ("center_id") REFERENCES "public"."service_centers"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "center_staff" ADD CONSTRAINT "center_staff_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "center_staff" ADD CONSTRAINT "center_staff_added_by_id_users_id_fk" FOREIGN KEY ("added_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "service_centers" ADD CONSTRAINT "service_centers_city_id_cities_id_fk" FOREIGN KEY ("city_id") REFERENCES "public"."cities"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "service_centers" ADD CONSTRAINT "service_centers_approved_by_id_users_id_fk" FOREIGN KEY ("approved_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "service_centers" ADD CONSTRAINT "service_centers_created_by_id_users_id_fk" FOREIGN KEY ("created_by_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+CREATE INDEX "center_credentials_center_idx" ON "center_credentials" USING btree ("center_id");
+CREATE INDEX "center_services_center_idx" ON "center_services" USING btree ("center_id");
+CREATE INDEX "center_staff_user_idx" ON "center_staff" USING btree ("user_id");
+CREATE INDEX "service_centers_status_idx" ON "service_centers" USING btree ("status");
+CREATE INDEX "service_centers_city_idx" ON "service_centers" USING btree ("city_id");
+CREATE OR REPLACE FUNCTION "audit_logs_immutable"() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  -- The only permitted change: actor_id set to NULL by the FK when a user account is deleted.
+  IF TG_OP = 'UPDATE' AND NEW.actor_id IS NULL AND NEW.id = OLD.id AND NEW.action = OLD.action
+     AND NEW.entity_type = OLD.entity_type AND NEW.entity_id = OLD.entity_id
+     AND NEW.metadata = OLD.metadata AND NEW.created_at = OLD.created_at THEN
+    RETURN NEW;
+  END IF;
+  RAISE EXCEPTION 'audit_logs is append-only';
+END;
+$$;
+DROP TRIGGER IF EXISTS "audit_logs_no_update_delete" ON "audit_logs";
+CREATE TRIGGER "audit_logs_no_update_delete" BEFORE UPDATE OR DELETE ON "audit_logs" FOR EACH ROW EXECUTE FUNCTION "audit_logs_immutable"();
+
+DROP TRIGGER IF EXISTS "audit_logs_no_truncate" ON "audit_logs";
+CREATE TRIGGER "audit_logs_no_truncate" BEFORE TRUNCATE ON "audit_logs" FOR EACH STATEMENT EXECUTE FUNCTION "audit_logs_immutable"();
+
+
+-- 0004_care_workflow.sql
+CREATE TYPE "public"."equipment_kind" AS ENUM('obd_scanner', 'paint_thickness_gauge', 'lift', 'wheel_alignment', 'tire_changer', 'ac_service_station', 'battery_tester', 'brake_tester', 'emissions_analyzer', 'other');
+ALTER TYPE "public"."center_status" ADD VALUE 'draft' BEFORE 'applied';
+ALTER TYPE "public"."center_status" ADD VALUE 'changes_requested' BEFORE 'approved';
+CREATE TABLE "center_equipment" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"center_id" uuid NOT NULL,
+	"kind" "equipment_kind" NOT NULL,
+	"details" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "center_equipment_details_length" CHECK ("center_equipment"."details" IS NULL OR char_length("center_equipment"."details") <= 200)
+);
+
+CREATE TABLE "center_review_notes" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"center_id" uuid NOT NULL,
+	"author_id" text,
+	"body" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "center_review_notes_length" CHECK (char_length("center_review_notes"."body") BETWEEN 1 AND 2000)
+);
+
+CREATE TABLE "center_technicians" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"center_id" uuid NOT NULL,
+	"full_name" text NOT NULL,
+	"specialty" text,
+	"years_experience" smallint,
+	"certifications" text,
+	"active" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "center_technicians_years" CHECK ("center_technicians"."years_experience" IS NULL OR "center_technicians"."years_experience" BETWEEN 0 AND 60)
+);
+
+ALTER TABLE "service_centers" ADD COLUMN "last_verified_at" timestamp with time zone;
+ALTER TABLE "service_centers" ADD COLUMN "submitted_at" timestamp with time zone;
+ALTER TABLE "center_equipment" ADD CONSTRAINT "center_equipment_center_id_service_centers_id_fk" FOREIGN KEY ("center_id") REFERENCES "public"."service_centers"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "center_review_notes" ADD CONSTRAINT "center_review_notes_center_id_service_centers_id_fk" FOREIGN KEY ("center_id") REFERENCES "public"."service_centers"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "center_review_notes" ADD CONSTRAINT "center_review_notes_author_id_users_id_fk" FOREIGN KEY ("author_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "center_technicians" ADD CONSTRAINT "center_technicians_center_id_service_centers_id_fk" FOREIGN KEY ("center_id") REFERENCES "public"."service_centers"("id") ON DELETE cascade ON UPDATE no action;
+CREATE INDEX "center_equipment_center_idx" ON "center_equipment" USING btree ("center_id");
+CREATE INDEX "center_review_notes_center_idx" ON "center_review_notes" USING btree ("center_id");
+CREATE INDEX "center_technicians_center_idx" ON "center_technicians" USING btree ("center_id");
+UPDATE "service_centers" SET "last_verified_at" = "approved_at" WHERE "approved_at" IS NOT NULL AND "last_verified_at" IS NULL;
+
+
+-- 0005_listing_phone_consent.sql
+ALTER TABLE "listings" ADD COLUMN "show_phone" boolean DEFAULT false NOT NULL;
+-- Keep any consent sellers already gave in their profile (opt-in only; default stays off).
+UPDATE "listings" SET "show_phone" = true FROM "users" WHERE "users"."id" = "listings"."seller_id" AND "users"."show_phone" = true AND "users"."phone" IS NOT NULL;
+
+
+-- 0006_care_providers.sql
+CREATE TYPE "public"."provider_category" AS ENUM('authorized_service', 'independent_workshop', 'inspection_center');
+ALTER TYPE "public"."credential_kind" ADD VALUE 'sample_report';
+CREATE TABLE "center_makes" (
+	"center_id" uuid NOT NULL,
+	"make_id" smallint NOT NULL,
+	CONSTRAINT "center_makes_center_id_make_id_pk" PRIMARY KEY("center_id","make_id")
+);
+
+CREATE TABLE "center_photos" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"center_id" uuid NOT NULL,
+	"storage_key" text NOT NULL,
+	"thumb_key" text NOT NULL,
+	"width" integer NOT NULL,
+	"height" integer NOT NULL,
+	"position" smallint DEFAULT 0 NOT NULL,
+	"uploaded_by_id" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE "service_centers" ADD COLUMN "category" "provider_category" DEFAULT 'independent_workshop' NOT NULL;
+ALTER TABLE "service_centers" ADD COLUMN "latitude" double precision;
+ALTER TABLE "service_centers" ADD COLUMN "longitude" double precision;
+ALTER TABLE "center_makes" ADD CONSTRAINT "center_makes_center_id_service_centers_id_fk" FOREIGN KEY ("center_id") REFERENCES "public"."service_centers"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "center_makes" ADD CONSTRAINT "center_makes_make_id_vehicle_makes_id_fk" FOREIGN KEY ("make_id") REFERENCES "public"."vehicle_makes"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "center_photos" ADD CONSTRAINT "center_photos_center_id_service_centers_id_fk" FOREIGN KEY ("center_id") REFERENCES "public"."service_centers"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "center_photos" ADD CONSTRAINT "center_photos_uploaded_by_id_users_id_fk" FOREIGN KEY ("uploaded_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+CREATE INDEX "center_makes_make_idx" ON "center_makes" USING btree ("make_id");
+CREATE INDEX "center_photos_center_idx" ON "center_photos" USING btree ("center_id","position");
+CREATE INDEX "service_centers_category_idx" ON "service_centers" USING btree ("category");
+ALTER TABLE "service_centers" ADD CONSTRAINT "service_centers_coords" CHECK (("service_centers"."latitude" IS NULL AND "service_centers"."longitude" IS NULL) OR ("service_centers"."latitude" BETWEEN 21 AND 32 AND "service_centers"."longitude" BETWEEN 24 AND 37));
+-- Existing centers that offer pre-purchase inspection become inspection providers; the rest stay independent workshops.
+UPDATE "service_centers" SET "category" = 'inspection_center' WHERE EXISTS (SELECT 1 FROM "center_services" s WHERE s."center_id" = "service_centers"."id" AND s."category" = 'pre_purchase_inspection' AND s."active");
+
+
+-- 0007_notifications.sql
+CREATE TABLE "notifications" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"user_id" text NOT NULL,
+	"kind" text NOT NULL,
+	"data" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"href" text NOT NULL,
+	"dedupe_key" text,
+	"read_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "notifications_href_local" CHECK ("notifications"."href" LIKE '/%' AND "notifications"."href" NOT LIKE '//%')
+);
+
+ALTER TABLE "notifications" ADD CONSTRAINT "notifications_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+CREATE INDEX "notifications_user_idx" ON "notifications" USING btree ("user_id","created_at");
+CREATE UNIQUE INDEX "notifications_unread_dedupe_idx" ON "notifications" USING btree ("user_id","dedupe_key") WHERE "notifications"."read_at" IS NULL AND "notifications"."dedupe_key" IS NOT NULL;
+
+-- 0008_care_booking.sql
+CREATE TYPE "public"."agreement_status" AS ENUM('draft', 'active', 'ended');
+CREATE TYPE "public"."booking_actor_role" AS ENUM('customer', 'provider', 'admin', 'system');
+CREATE TYPE "public"."booking_mode" AS ENUM('slots', 'manual');
+CREATE TYPE "public"."booking_status" AS ENUM('pending_provider', 'alternative_proposed', 'awaiting_customer', 'confirmed', 'checked_in', 'completed', 'declined', 'cancelled_customer', 'cancelled_provider', 'no_show', 'expired', 'disputed');
+CREATE TYPE "public"."commission_basis" AS ENUM('percent', 'fixed');
+CREATE TYPE "public"."dispute_kind" AS ENUM('no_show_dispute', 'late_cancellation', 'service_unavailable', 'completion_disagreement', 'price_disagreement', 'conduct', 'support', 'other');
+CREATE TYPE "public"."dispute_status" AS ENUM('open', 'reviewing', 'resolved', 'dismissed');
+CREATE TYPE "public"."ledger_status" AS ENUM('pending_verification', 'confirmed', 'disputed', 'payable', 'settled', 'waived');
+CREATE TYPE "public"."settlement_schedule" AS ENUM('monthly', 'biweekly');
+CREATE TYPE "public"."settlement_status" AS ENUM('open', 'issued', 'settled', 'void');
+CREATE TYPE "public"."time_option_kind" AS ENUM('requested', 'proposed');
+CREATE TYPE "public"."time_option_state" AS ENUM('open', 'accepted', 'declined', 'withdrawn');
+ALTER TYPE "public"."price_mode" ADD VALUE IF NOT EXISTS 'estimate';
+CREATE TABLE "booking_disputes" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"booking_id" uuid NOT NULL,
+	"opened_by_id" text,
+	"opened_by_role" "booking_actor_role" NOT NULL,
+	"kind" "dispute_kind" NOT NULL,
+	"description" text NOT NULL,
+	"status" "dispute_status" DEFAULT 'open' NOT NULL,
+	"prior_status" "booking_status",
+	"outcome_status" "booking_status",
+	"resolution" text,
+	"resolved_by_id" text,
+	"resolved_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "booking_disputes_desc_len" CHECK (char_length("booking_disputes"."description") BETWEEN 5 AND 2000)
+);
+
+CREATE TABLE "booking_events" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"booking_id" uuid NOT NULL,
+	"action" text NOT NULL,
+	"from_status" "booking_status",
+	"to_status" "booking_status" NOT NULL,
+	"actor_id" text,
+	"actor_role" "booking_actor_role" NOT NULL,
+	"note" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE "booking_messages" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"booking_id" uuid NOT NULL,
+	"author_id" text,
+	"author_role" "booking_actor_role" NOT NULL,
+	"body" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "booking_messages_len" CHECK (char_length("booking_messages"."body") BETWEEN 1 AND 1000)
+);
+
+CREATE TABLE "booking_time_options" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"booking_id" uuid NOT NULL,
+	"kind" time_option_kind NOT NULL,
+	"round" smallint DEFAULT 1 NOT NULL,
+	"starts_at" timestamp with time zone NOT NULL,
+	"ends_at" timestamp with time zone NOT NULL,
+	"state" time_option_state DEFAULT 'open' NOT NULL,
+	"created_by_id" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "booking_time_options_range" CHECK ("booking_time_options"."ends_at" > "booking_time_options"."starts_at")
+);
+
+CREATE TABLE "bookings" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"reference" text NOT NULL,
+	"center_id" uuid NOT NULL,
+	"service_id" uuid,
+	"customer_id" text NOT NULL,
+	"vehicle_id" uuid,
+	"status" "booking_status" DEFAULT 'pending_provider' NOT NULL,
+	"mode" "booking_mode" NOT NULL,
+	"service_name_ar" text NOT NULL,
+	"service_name_en" text NOT NULL,
+	"service_category" "care_category" NOT NULL,
+	"price_mode" "price_mode" NOT NULL,
+	"price_egp" integer,
+	"price_max_egp" integer,
+	"duration_min" smallint NOT NULL,
+	"vehicle_make_id" smallint NOT NULL,
+	"vehicle_model_id" integer,
+	"vehicle_model_text" text,
+	"vehicle_year" smallint NOT NULL,
+	"vehicle_mileage_km" integer,
+	"cancel_cutoff_hours" smallint NOT NULL,
+	"starts_at" timestamp with time zone,
+	"ends_at" timestamp with time zone,
+	"contact_name" text NOT NULL,
+	"contact_phone" text NOT NULL,
+	"customer_note" text,
+	"status_reason" text,
+	"late_cancel" boolean DEFAULT false NOT NULL,
+	"request_key" text NOT NULL,
+	"confirmed_at" timestamp with time zone,
+	"completed_at" timestamp with time zone,
+	"reminder_sent_at" timestamp with time zone,
+	"pre_dispute_status" "booking_status",
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "bookings_reference_unique" UNIQUE("reference"),
+	CONSTRAINT "bookings_time_range" CHECK (("bookings"."starts_at" IS NULL AND "bookings"."ends_at" IS NULL) OR ("bookings"."ends_at" > "bookings"."starts_at")),
+	CONSTRAINT "bookings_confirmed_has_time" CHECK ("bookings"."status"::text NOT IN ('confirmed', 'checked_in', 'completed', 'no_show') OR "bookings"."starts_at" IS NOT NULL),
+	CONSTRAINT "bookings_note_len" CHECK ("bookings"."customer_note" IS NULL OR char_length("bookings"."customer_note") <= 1000),
+	CONSTRAINT "bookings_reference_format" CHECK ("bookings"."reference" ~ '^MC-[A-Z0-9]{6,10}$')
+);
+
+CREATE TABLE "center_booking_settings" (
+	"center_id" uuid PRIMARY KEY NOT NULL,
+	"pilot_enabled" boolean DEFAULT false NOT NULL,
+	"pilot_enabled_by_id" text,
+	"pilot_enabled_at" timestamp with time zone,
+	"accepting" boolean DEFAULT false NOT NULL,
+	"mode" "booking_mode" DEFAULT 'manual' NOT NULL,
+	"slot_interval_min" smallint DEFAULT 30 NOT NULL,
+	"capacity" smallint DEFAULT 1 NOT NULL,
+	"min_notice_hours" smallint DEFAULT 4 NOT NULL,
+	"max_advance_days" smallint DEFAULT 30 NOT NULL,
+	"cancel_cutoff_hours" smallint DEFAULT 12 NOT NULL,
+	"policy_ar" text DEFAULT '' NOT NULL,
+	"policy_en" text DEFAULT '' NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "cbs_interval" CHECK ("center_booking_settings"."slot_interval_min" IN (15, 30, 60)),
+	CONSTRAINT "cbs_capacity" CHECK ("center_booking_settings"."capacity" BETWEEN 1 AND 50),
+	CONSTRAINT "cbs_notice" CHECK ("center_booking_settings"."min_notice_hours" BETWEEN 0 AND 168),
+	CONSTRAINT "cbs_advance" CHECK ("center_booking_settings"."max_advance_days" BETWEEN 1 AND 90),
+	CONSTRAINT "cbs_cutoff" CHECK ("center_booking_settings"."cancel_cutoff_hours" BETWEEN 0 AND 72),
+	CONSTRAINT "cbs_policy_len" CHECK (char_length("center_booking_settings"."policy_ar") <= 1000 AND char_length("center_booking_settings"."policy_en") <= 1000)
+);
+
+CREATE TABLE "center_closures" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"center_id" uuid NOT NULL,
+	"starts_at" timestamp with time zone NOT NULL,
+	"ends_at" timestamp with time zone NOT NULL,
+	"reason" text,
+	"created_by_id" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "center_closures_range" CHECK ("center_closures"."ends_at" > "center_closures"."starts_at")
+);
+
+CREATE TABLE "center_reviews" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"booking_id" uuid NOT NULL,
+	"center_id" uuid NOT NULL,
+	"customer_id" text NOT NULL,
+	"rating" smallint NOT NULL,
+	"comment" text,
+	"hidden" boolean DEFAULT false NOT NULL,
+	"hidden_reason" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "center_reviews_bookingId_unique" UNIQUE("booking_id"),
+	CONSTRAINT "center_reviews_rating" CHECK ("center_reviews"."rating" BETWEEN 1 AND 5),
+	CONSTRAINT "center_reviews_comment_len" CHECK ("center_reviews"."comment" IS NULL OR char_length("center_reviews"."comment") <= 1000)
+);
+
+CREATE TABLE "commission_adjustments" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"ledger_id" uuid NOT NULL,
+	"delta_egp" integer NOT NULL,
+	"reason" text NOT NULL,
+	"created_by_id" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "commission_adjustments_delta" CHECK ("commission_adjustments"."delta_egp" <> 0 AND "commission_adjustments"."delta_egp" BETWEEN -1000000 AND 1000000),
+	CONSTRAINT "commission_adjustments_reason_len" CHECK (char_length("commission_adjustments"."reason") BETWEEN 3 AND 500)
+);
+
+CREATE TABLE "commission_agreements" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"center_id" uuid NOT NULL,
+	"status" "agreement_status" DEFAULT 'draft' NOT NULL,
+	"basis" "commission_basis" NOT NULL,
+	"percent_bps" integer,
+	"fixed_egp" integer,
+	"categories" "care_category"[],
+	"effective_from" timestamp with time zone NOT NULL,
+	"effective_to" timestamp with time zone,
+	"exceptions" text,
+	"settlement_schedule" "settlement_schedule" DEFAULT 'monthly' NOT NULL,
+	"contract_reference" text,
+	"created_by_id" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "commission_agreements_terms" CHECK (("commission_agreements"."basis"::text = 'percent' AND "commission_agreements"."percent_bps" BETWEEN 1 AND 5000 AND "commission_agreements"."fixed_egp" IS NULL) OR ("commission_agreements"."basis"::text = 'fixed' AND "commission_agreements"."fixed_egp" BETWEEN 1 AND 100000 AND "commission_agreements"."percent_bps" IS NULL)),
+	CONSTRAINT "commission_agreements_range" CHECK ("commission_agreements"."effective_to" IS NULL OR "commission_agreements"."effective_to" > "commission_agreements"."effective_from")
+);
+
+CREATE TABLE "commission_ledger" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"booking_id" uuid NOT NULL,
+	"center_id" uuid NOT NULL,
+	"agreement_id" uuid NOT NULL,
+	"booking_reference" text NOT NULL,
+	"source" text DEFAULT 'motorna_booking' NOT NULL,
+	"agreed_price_egp" integer,
+	"completed_amount_egp" integer NOT NULL,
+	"basis" "commission_basis" NOT NULL,
+	"percent_bps" integer,
+	"fixed_egp" integer,
+	"commission_egp" integer NOT NULL,
+	"provider_confirmed_at" timestamp with time zone NOT NULL,
+	"customer_confirmed_at" timestamp with time zone,
+	"status" "ledger_status" DEFAULT 'pending_verification' NOT NULL,
+	"settlement_id" uuid,
+	"completed_at" timestamp with time zone NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "commission_ledger_bookingId_unique" UNIQUE("booking_id"),
+	CONSTRAINT "commission_ledger_amounts" CHECK ("commission_ledger"."completed_amount_egp" >= 0 AND "commission_ledger"."commission_egp" BETWEEN 0 AND "commission_ledger"."completed_amount_egp")
+);
+
+CREATE TABLE "commission_settlements" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"center_id" uuid NOT NULL,
+	"reference" text NOT NULL,
+	"period_start" timestamp with time zone NOT NULL,
+	"period_end" timestamp with time zone NOT NULL,
+	"total_egp" integer NOT NULL,
+	"status" "settlement_status" DEFAULT 'issued' NOT NULL,
+	"payment_note" text,
+	"settled_at" timestamp with time zone,
+	"created_by_id" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "commission_settlements_reference_unique" UNIQUE("reference"),
+	CONSTRAINT "commission_settlements_range" CHECK ("commission_settlements"."period_end" > "commission_settlements"."period_start")
+);
+
+CREATE TABLE "customer_vehicles" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"user_id" text NOT NULL,
+	"make_id" smallint NOT NULL,
+	"model_id" integer,
+	"year" smallint NOT NULL,
+	"mileage_km" integer,
+	"nickname" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "customer_vehicles_year" CHECK ("customer_vehicles"."year" BETWEEN 1950 AND 2100),
+	CONSTRAINT "customer_vehicles_mileage" CHECK ("customer_vehicles"."mileage_km" IS NULL OR "customer_vehicles"."mileage_km" BETWEEN 0 AND 3000000)
+);
+
+CREATE TABLE "service_completions" (
+	"booking_id" uuid PRIMARY KEY NOT NULL,
+	"attended" boolean NOT NULL,
+	"service_completed" boolean NOT NULL,
+	"final_amount_egp" integer,
+	"work_summary" text,
+	"mileage_km" integer,
+	"recorded_by_id" text,
+	"recorded_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"customer_confirmed_at" timestamp with time zone,
+	"confirm_reminder_sent_at" timestamp with time zone,
+	CONSTRAINT "service_completions_amount" CHECK ("service_completions"."final_amount_egp" IS NULL OR "service_completions"."final_amount_egp" BETWEEN 0 AND 5000000),
+	CONSTRAINT "service_completions_summary_len" CHECK ("service_completions"."work_summary" IS NULL OR char_length("service_completions"."work_summary") <= 2000)
+);
+
+ALTER TABLE "center_services" DROP CONSTRAINT "center_services_price";
+ALTER TABLE "center_services" ADD COLUMN "price_max_egp" integer;
+ALTER TABLE "center_services" ADD COLUMN "bookable" boolean DEFAULT true NOT NULL;
+ALTER TABLE "booking_disputes" ADD CONSTRAINT "booking_disputes_booking_id_bookings_id_fk" FOREIGN KEY ("booking_id") REFERENCES "public"."bookings"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "booking_disputes" ADD CONSTRAINT "booking_disputes_opened_by_id_users_id_fk" FOREIGN KEY ("opened_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "booking_disputes" ADD CONSTRAINT "booking_disputes_resolved_by_id_users_id_fk" FOREIGN KEY ("resolved_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "booking_events" ADD CONSTRAINT "booking_events_booking_id_bookings_id_fk" FOREIGN KEY ("booking_id") REFERENCES "public"."bookings"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "booking_events" ADD CONSTRAINT "booking_events_actor_id_users_id_fk" FOREIGN KEY ("actor_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "booking_messages" ADD CONSTRAINT "booking_messages_booking_id_bookings_id_fk" FOREIGN KEY ("booking_id") REFERENCES "public"."bookings"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "booking_messages" ADD CONSTRAINT "booking_messages_author_id_users_id_fk" FOREIGN KEY ("author_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "booking_time_options" ADD CONSTRAINT "booking_time_options_booking_id_bookings_id_fk" FOREIGN KEY ("booking_id") REFERENCES "public"."bookings"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "booking_time_options" ADD CONSTRAINT "booking_time_options_created_by_id_users_id_fk" FOREIGN KEY ("created_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "bookings" ADD CONSTRAINT "bookings_center_id_service_centers_id_fk" FOREIGN KEY ("center_id") REFERENCES "public"."service_centers"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "bookings" ADD CONSTRAINT "bookings_service_id_center_services_id_fk" FOREIGN KEY ("service_id") REFERENCES "public"."center_services"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "bookings" ADD CONSTRAINT "bookings_customer_id_users_id_fk" FOREIGN KEY ("customer_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "bookings" ADD CONSTRAINT "bookings_vehicle_id_customer_vehicles_id_fk" FOREIGN KEY ("vehicle_id") REFERENCES "public"."customer_vehicles"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "bookings" ADD CONSTRAINT "bookings_vehicle_make_id_vehicle_makes_id_fk" FOREIGN KEY ("vehicle_make_id") REFERENCES "public"."vehicle_makes"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "bookings" ADD CONSTRAINT "bookings_vehicle_model_id_vehicle_models_id_fk" FOREIGN KEY ("vehicle_model_id") REFERENCES "public"."vehicle_models"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "center_booking_settings" ADD CONSTRAINT "center_booking_settings_center_id_service_centers_id_fk" FOREIGN KEY ("center_id") REFERENCES "public"."service_centers"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "center_booking_settings" ADD CONSTRAINT "center_booking_settings_pilot_enabled_by_id_users_id_fk" FOREIGN KEY ("pilot_enabled_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "center_closures" ADD CONSTRAINT "center_closures_center_id_service_centers_id_fk" FOREIGN KEY ("center_id") REFERENCES "public"."service_centers"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "center_closures" ADD CONSTRAINT "center_closures_created_by_id_users_id_fk" FOREIGN KEY ("created_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "center_reviews" ADD CONSTRAINT "center_reviews_booking_id_bookings_id_fk" FOREIGN KEY ("booking_id") REFERENCES "public"."bookings"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "center_reviews" ADD CONSTRAINT "center_reviews_center_id_service_centers_id_fk" FOREIGN KEY ("center_id") REFERENCES "public"."service_centers"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "center_reviews" ADD CONSTRAINT "center_reviews_customer_id_users_id_fk" FOREIGN KEY ("customer_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "commission_adjustments" ADD CONSTRAINT "commission_adjustments_ledger_id_commission_ledger_id_fk" FOREIGN KEY ("ledger_id") REFERENCES "public"."commission_ledger"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "commission_adjustments" ADD CONSTRAINT "commission_adjustments_created_by_id_users_id_fk" FOREIGN KEY ("created_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "commission_agreements" ADD CONSTRAINT "commission_agreements_center_id_service_centers_id_fk" FOREIGN KEY ("center_id") REFERENCES "public"."service_centers"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "commission_agreements" ADD CONSTRAINT "commission_agreements_created_by_id_users_id_fk" FOREIGN KEY ("created_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "commission_ledger" ADD CONSTRAINT "commission_ledger_booking_id_bookings_id_fk" FOREIGN KEY ("booking_id") REFERENCES "public"."bookings"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "commission_ledger" ADD CONSTRAINT "commission_ledger_center_id_service_centers_id_fk" FOREIGN KEY ("center_id") REFERENCES "public"."service_centers"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "commission_ledger" ADD CONSTRAINT "commission_ledger_agreement_id_commission_agreements_id_fk" FOREIGN KEY ("agreement_id") REFERENCES "public"."commission_agreements"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "commission_ledger" ADD CONSTRAINT "commission_ledger_settlement_id_commission_settlements_id_fk" FOREIGN KEY ("settlement_id") REFERENCES "public"."commission_settlements"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "commission_settlements" ADD CONSTRAINT "commission_settlements_center_id_service_centers_id_fk" FOREIGN KEY ("center_id") REFERENCES "public"."service_centers"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "commission_settlements" ADD CONSTRAINT "commission_settlements_created_by_id_users_id_fk" FOREIGN KEY ("created_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "customer_vehicles" ADD CONSTRAINT "customer_vehicles_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "customer_vehicles" ADD CONSTRAINT "customer_vehicles_make_id_vehicle_makes_id_fk" FOREIGN KEY ("make_id") REFERENCES "public"."vehicle_makes"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "customer_vehicles" ADD CONSTRAINT "customer_vehicles_model_id_vehicle_models_id_fk" FOREIGN KEY ("model_id") REFERENCES "public"."vehicle_models"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "service_completions" ADD CONSTRAINT "service_completions_booking_id_bookings_id_fk" FOREIGN KEY ("booking_id") REFERENCES "public"."bookings"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "service_completions" ADD CONSTRAINT "service_completions_recorded_by_id_users_id_fk" FOREIGN KEY ("recorded_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+CREATE INDEX "booking_disputes_booking_idx" ON "booking_disputes" USING btree ("booking_id");
+CREATE INDEX "booking_disputes_status_idx" ON "booking_disputes" USING btree ("status","created_at");
+CREATE INDEX "booking_events_booking_idx" ON "booking_events" USING btree ("booking_id","created_at");
+CREATE INDEX "booking_messages_booking_idx" ON "booking_messages" USING btree ("booking_id","created_at");
+CREATE INDEX "booking_time_options_booking_idx" ON "booking_time_options" USING btree ("booking_id");
+CREATE UNIQUE INDEX "bookings_request_key_uq" ON "bookings" USING btree ("customer_id","request_key");
+CREATE INDEX "bookings_center_idx" ON "bookings" USING btree ("center_id","status","starts_at");
+CREATE INDEX "bookings_customer_idx" ON "bookings" USING btree ("customer_id","created_at");
+CREATE INDEX "center_closures_center_idx" ON "center_closures" USING btree ("center_id","starts_at");
+CREATE INDEX "center_reviews_center_idx" ON "center_reviews" USING btree ("center_id","created_at");
+CREATE INDEX "commission_adjustments_ledger_idx" ON "commission_adjustments" USING btree ("ledger_id");
+CREATE INDEX "commission_agreements_center_idx" ON "commission_agreements" USING btree ("center_id","status");
+CREATE INDEX "commission_ledger_center_idx" ON "commission_ledger" USING btree ("center_id","completed_at");
+CREATE INDEX "commission_ledger_status_idx" ON "commission_ledger" USING btree ("status");
+CREATE INDEX "commission_settlements_center_idx" ON "commission_settlements" USING btree ("center_id","period_start");
+CREATE INDEX "customer_vehicles_user_idx" ON "customer_vehicles" USING btree ("user_id");
+ALTER TABLE "center_services" ADD CONSTRAINT "center_services_price_v2" CHECK (("center_services"."price_mode"::text = 'quote' AND "center_services"."price_egp" IS NULL AND "center_services"."price_max_egp" IS NULL) OR ("center_services"."price_mode"::text = 'fixed' AND "center_services"."price_egp" BETWEEN 1 AND 1000000 AND "center_services"."price_max_egp" IS NULL) OR ("center_services"."price_mode"::text = 'estimate' AND "center_services"."price_egp" BETWEEN 1 AND 1000000 AND ("center_services"."price_max_egp" IS NULL OR "center_services"."price_max_egp" BETWEEN "center_services"."price_egp" AND 1000000)));
+CREATE OR REPLACE FUNCTION "booking_events_immutable"() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  -- Allowed: actor_id set to NULL when a user is deleted; rows removed only together with their booking.
+  IF TG_OP = 'UPDATE' AND NEW.actor_id IS NULL AND NEW.id = OLD.id AND NEW.booking_id = OLD.booking_id
+     AND NEW.action = OLD.action AND NEW.to_status = OLD.to_status
+     AND NEW.from_status IS NOT DISTINCT FROM OLD.from_status AND NEW.note IS NOT DISTINCT FROM OLD.note
+     AND NEW.created_at = OLD.created_at THEN
+    RETURN NEW;
+  END IF;
+  IF TG_OP = 'DELETE' AND NOT EXISTS (SELECT 1 FROM "bookings" WHERE "id" = OLD.booking_id) THEN
+    RETURN OLD;
+  END IF;
+  RAISE EXCEPTION 'booking_events is append-only';
+END;
+$$;
+DROP TRIGGER IF EXISTS "booking_events_no_update_delete" ON "booking_events";
+CREATE TRIGGER "booking_events_no_update_delete" BEFORE UPDATE OR DELETE ON "booking_events" FOR EACH ROW EXECUTE FUNCTION "booking_events_immutable"();
+CREATE OR REPLACE FUNCTION "commission_adjustments_immutable"() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_OP = 'UPDATE' AND NEW.created_by_id IS NULL AND NEW.id = OLD.id AND NEW.ledger_id = OLD.ledger_id
+     AND NEW.delta_egp = OLD.delta_egp AND NEW.reason = OLD.reason AND NEW.created_at = OLD.created_at THEN
+    RETURN NEW;
+  END IF;
+  RAISE EXCEPTION 'commission_adjustments is append-only';
+END;
+$$;
+DROP TRIGGER IF EXISTS "commission_adjustments_no_update_delete" ON "commission_adjustments";
+CREATE TRIGGER "commission_adjustments_no_update_delete" BEFORE UPDATE OR DELETE ON "commission_adjustments" FOR EACH ROW EXECUTE FUNCTION "commission_adjustments_immutable"();
+CREATE OR REPLACE FUNCTION "commission_ledger_guard"() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'commission_ledger rows are never deleted (waive them instead)';
+  END IF;
+  IF TG_OP = 'INSERT' THEN
+    IF NOT EXISTS (SELECT 1 FROM "bookings" WHERE "id" = NEW.booking_id AND "status" = 'completed' AND "center_id" = NEW.center_id) THEN
+      RAISE EXCEPTION 'commission is recorded only for a completed booking of the same center';
+    END IF;
+    IF NEW.status <> 'pending_verification' OR NEW.settlement_id IS NOT NULL THEN
+      RAISE EXCEPTION 'a new commission record starts as pending_verification';
+    END IF;
+    RETURN NEW;
+  END IF;
+  -- UPDATE: the commercial facts are frozen; only status, settlement link and customer confirmation move.
+  IF NEW.booking_id <> OLD.booking_id OR NEW.center_id <> OLD.center_id OR NEW.agreement_id <> OLD.agreement_id
+     OR NEW.booking_reference <> OLD.booking_reference OR NEW.completed_amount_egp <> OLD.completed_amount_egp
+     OR NEW.commission_egp <> OLD.commission_egp OR NEW.basis <> OLD.basis
+     OR NEW.percent_bps IS DISTINCT FROM OLD.percent_bps OR NEW.fixed_egp IS DISTINCT FROM OLD.fixed_egp
+     OR NEW.agreed_price_egp IS DISTINCT FROM OLD.agreed_price_egp OR NEW.provider_confirmed_at <> OLD.provider_confirmed_at
+     OR NEW.completed_at <> OLD.completed_at OR NEW.created_at <> OLD.created_at THEN
+    RAISE EXCEPTION 'commission_ledger amounts are immutable (use commission_adjustments)';
+  END IF;
+  IF OLD.status IN ('settled', 'waived') AND NEW.status <> OLD.status THEN
+    RAISE EXCEPTION 'settled or waived commission records are final';
+  END IF;
+  IF NEW.status = 'settled' AND OLD.status <> 'payable' THEN
+    RAISE EXCEPTION 'only a payable commission (in an issued settlement) can be settled';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS "commission_ledger_guard_trg" ON "commission_ledger";
+CREATE TRIGGER "commission_ledger_guard_trg" BEFORE INSERT OR UPDATE OR DELETE ON "commission_ledger" FOR EACH ROW EXECUTE FUNCTION "commission_ledger_guard"();
+CREATE OR REPLACE FUNCTION "commission_agreements_guard"() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    IF OLD.status <> 'draft' THEN RAISE EXCEPTION 'only draft agreements can be deleted'; END IF;
+    RETURN OLD;
+  END IF;
+  IF OLD.status <> 'draft' AND (NEW.center_id <> OLD.center_id OR NEW.basis <> OLD.basis
+     OR NEW.percent_bps IS DISTINCT FROM OLD.percent_bps OR NEW.fixed_egp IS DISTINCT FROM OLD.fixed_egp
+     OR NEW.categories IS DISTINCT FROM OLD.categories OR NEW.effective_from <> OLD.effective_from
+     OR NEW.settlement_schedule <> OLD.settlement_schedule OR NEW.exceptions IS DISTINCT FROM OLD.exceptions
+     OR NEW.contract_reference IS DISTINCT FROM OLD.contract_reference) THEN
+    RAISE EXCEPTION 'active or ended agreements are immutable (end it and create a new one)';
+  END IF;
+  IF OLD.status = 'ended' AND NEW.status <> 'ended' THEN RAISE EXCEPTION 'an ended agreement cannot be reopened'; END IF;
+  IF OLD.status = 'active' AND NEW.status = 'draft' THEN RAISE EXCEPTION 'an active agreement cannot return to draft'; END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS "commission_agreements_guard_trg" ON "commission_agreements";
+CREATE TRIGGER "commission_agreements_guard_trg" BEFORE UPDATE OR DELETE ON "commission_agreements" FOR EACH ROW EXECUTE FUNCTION "commission_agreements_guard"();
+
 
 -- Reference data: governorates
 INSERT INTO cities (id, slug, name_en, name_ar, is_launch, sort_order) VALUES (1, 'alexandria', 'Alexandria', 'الإسكندرية', true, 1) ON CONFLICT (id) DO NOTHING;
@@ -1012,6 +1648,12 @@ CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (id SERIAL PRIMARY KEY, 
 INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('6870c4f47269d6c12aa952ef16ac5cc67eeb42aaa78a1c3f3b167e9a52c0373b', 1792860094589);
 INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('8819b5613e91dbb278abf50eda98b2a83c3eb97ac9ac472242320c7e88c09958', 1792866478440);
 INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('c76ea95a47a93caee5552f6ba2c81e5014d0be46ec3a3caa7b767bb69cf0a687', 1792872332753);
+INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('e52bfd34ff77e71057125f4648f3aa9b85d21a95a7847ee17765dfbf11f83500', 1792879526593);
+INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('e08864dca6141d2eedd1d0e4d2ebd5117fb1fe8b2b3b2985eecb4892c7244087', 1792881482945);
+INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('dcf935a2b481a45983626ee3b72751ea5f47fb40f4232dacba6f7f9f8cb9de8f', 1792884569832);
+INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('ed6847f25fffdc4b68cfbd14be3dd8e4706063b48dfb609642d5e85c7ba3cbef', 1792915369555);
+INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('67c63f5fb637a5e5cdd7ed2b91efe9ad7d9eaf16cbe3d84e459cf7fc1af57e98', 1792916603683);
+INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('405141f61e000f3436fa141375ff2808427904623f95f7f1818d1a86be63c41f', 1792924459218);
 
 COMMIT;
 

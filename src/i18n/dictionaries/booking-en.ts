@@ -172,6 +172,7 @@ const bookingEn: BookingDictionary = {
   },
   actor: { customer: "Customer", provider: "Provider", admin: "MOTORNA", system: "System" },
 
+  subnav: { dashboard: "Center profile", bookings: "Bookings", schedule: "Booking settings", reports: "Reports" },
   provider: {
     title: "Bookings",
     tabs: { action: "Needs action", upcoming: "Upcoming", history: "History" },

@@ -94,7 +94,7 @@ const bookingAr = {
   upcoming: "الجاية والمفتوحة",
   past: "السابقة",
   requestedAt: "اتطلب",
-  confirmedTime: "الميعاد المؤكد",
+  confirmedTime: "ميعادك المؤكد",
   requestedTime: "ميعاد مطلوب — مش مؤكد",
   proposedTime: "ميعاد مقترح من المركز",
   timeline: "سجل الحجز",
@@ -171,6 +171,7 @@ const bookingAr = {
   },
   actor: { customer: "العميل", provider: "المركز", admin: "موتورنا", system: "النظام" },
 
+  subnav: { dashboard: "ملف المركز", bookings: "الحجوزات", schedule: "إعدادات الحجز", reports: "التقارير" },
   provider: {
     title: "الحجوزات",
     tabs: { action: "محتاجة رد", upcoming: "الجاية", history: "السجل" },

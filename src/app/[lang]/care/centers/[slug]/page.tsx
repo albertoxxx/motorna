@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BadgeCheck, Check, Globe, Info, Mail, MapPin, Phone, Wrench } from "lucide-react";
+import { ArrowLeft, BadgeCheck, CalendarCheck, Check, Globe, Info, Mail, MapPin, Phone, Star, Wrench } from "lucide-react";
 import { resolveLocale } from "@/i18n/server";
 import { publicCenterBySlug } from "@/server/care";
 import { applicableCriteria, type CenterCriterion } from "@/lib/care";
-import { formatDate, formatPrice } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { centerBookable, centerRatingSummary, centerReviews } from "@/server/bookings";
+import { ServicePrice } from "@/components/care/service-price";
 import { Gallery } from "@/components/gallery";
 
 export async function generateMetadata({ params }: PageProps<"/[lang]/care/centers/[slug]">): Promise<Metadata> {
@@ -37,6 +39,9 @@ export default async function CenterPublicPage({ params }: PageProps<"/[lang]/ca
   if (!c) notFound();
   const K = dict.care;
   const D = K.detail;
+  const T = dict.booking;
+  const [bookable, rating, reviews] = await Promise.all([centerBookable(c.id), centerRatingSummary(c.id), centerReviews(c.id)]);
+  const bookHref = (serviceId?: string) => `/${locale}/care/centers/${c.slug}/book${serviceId ? `?service=${serviceId}` : ""}`;
   const name = locale === "ar" ? c.nameAr : c.nameEn;
   const verified = c.lastVerifiedAt ?? c.approvedAt;
   const offersInspection = c.services.some((s) => s.category === "pre_purchase_inspection");
@@ -102,11 +107,19 @@ export default async function CenterPublicPage({ params }: PageProps<"/[lang]/ca
                       <p className="font-medium"><bdi>{locale === "ar" ? s.nameAr : s.nameEn}</bdi></p>
                       <p className="text-sm text-ink-3">{K.enums.category[s.category]} · {D.durationMin.replace("{n}", String(s.durationMin))}</p>
                     </div>
-                    <p className="tabular font-semibold text-navy-900">{s.priceMode === "fixed" && s.priceEgp != null ? formatPrice(s.priceEgp, locale) : D.onQuotation}</p>
+                    <div className="flex items-center gap-3">
+                      <ServicePrice s={s} locale={locale} T={T} />
+                      {bookable && s.bookable && (
+                        <Link href={bookHref(s.id)} className="inline-flex h-9 items-center rounded-[var(--radius-sm)] border border-brand-600 px-3 text-sm font-semibold text-brand-700 hover:bg-brand-50">
+                          {T.bookService}
+                        </Link>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>
             )}
+            {c.services.some((s) => s.priceMode === "estimate") && <p className="mt-4 text-xs text-ink-3">{T.estimateNote}</p>}
             {c.quotationPolicy && (
               <div className="mt-5 rounded-[var(--radius-md)] bg-canvas p-4 text-sm">
                 <p className="font-medium">{D.quotationPolicy}</p>
@@ -164,6 +177,22 @@ export default async function CenterPublicPage({ params }: PageProps<"/[lang]/ca
             </Card>
           )}
 
+          {rating.count > 0 && (
+            <Card id="reviews" title={`${T.admin.reviews} (${rating.count})`}>
+              <p className="flex items-center gap-1.5 text-sm font-semibold"><Star className="size-4 fill-current text-warning-600" aria-hidden /><span className="tabular">{rating.average}</span> / 5</p>
+              <ul className="mt-3 flex flex-col divide-y divide-line">
+                {reviews.map((r) => (
+                  <li key={r.id} className="py-3 text-sm">
+                    <p className="tabular font-medium" aria-label={`${r.rating}/5`}>{"★".repeat(r.rating)}<span className="text-ink-3">{"★".repeat(5 - r.rating)}</span></p>
+                    {r.comment && <p dir="auto" className="mt-1 text-ink-2">{r.comment}</p>}
+                    <p className="mt-1 text-xs text-ink-3">{formatDate(r.createdAt, locale)}</p>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-xs text-ink-3">{K.verification.separate}</p>
+            </Card>
+          )}
+
           <Card id="review" title={D.verificationTitle}>
             <p className="text-sm font-medium">{K.verification[c.category].badge}</p>
             <p className="mt-1 text-sm text-ink-2">{K.verification[c.category].body}</p>
@@ -194,6 +223,12 @@ export default async function CenterPublicPage({ params }: PageProps<"/[lang]/ca
         <aside className="flex flex-col gap-6 lg:sticky lg:top-24 lg:self-start">
           <Card id="contact" title={D.contact}>
             <div className="flex flex-col gap-2">
+              {bookable && (
+                <Link href={bookHref()} className="inline-flex h-11 items-center justify-center gap-2 rounded-[var(--radius-sm)] bg-navy-900 px-4 text-sm font-semibold text-white hover:bg-navy-800">
+                  <CalendarCheck className="size-4" aria-hidden />
+                  {T.book}
+                </Link>
+              )}
               <a href={`tel:${c.phone}`} className="inline-flex h-11 items-center justify-center gap-2 rounded-[var(--radius-sm)] bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700">
                 <Phone className="size-4" aria-hidden />
                 {D.call} <span dir="ltr" className="tabular">{c.phone}</span>
@@ -209,7 +244,7 @@ export default async function CenterPublicPage({ params }: PageProps<"/[lang]/ca
                 </a>
               )}
             </div>
-            <p className="mt-4 text-xs text-ink-3">{D.bookingNow}</p>
+            <p className="mt-4 text-xs text-ink-3">{bookable ? T.payDirect : D.bookingNow}</p>
           </Card>
 
           <Card id="location" title={D.location}>

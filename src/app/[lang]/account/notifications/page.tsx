@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Bell, BadgeCheck, MessageSquare, Wrench, XCircle } from "lucide-react";
+import { Bell, BadgeCheck, CalendarCheck, MessageSquare, Wrench, XCircle } from "lucide-react";
 import { resolveLocale } from "@/i18n/server";
 import { requireUser } from "@/server/session";
 import { listNotifications } from "@/server/notifications";
@@ -12,12 +12,17 @@ import type { Dictionary } from "@/i18n/dictionaries/ar";
 
 export const metadata: Metadata = { robots: { index: false } };
 
-function render(n: { kind: string; data: Record<string, string | null> }, T: Dictionary["notifications"], locale: string) {
+function render(n: { kind: string; data: Record<string, string | null> }, T: Dictionary["notifications"], B: Dictionary["booking"]["notif"], locale: string) {
   const fill = (tpl: string, vars: Record<string, string | null | undefined>) =>
     tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? "").replace(/:\s*$/, "");
   if (n.kind === "center_status") {
     const tpl = T.center[(n.data.action ?? "approve") as keyof typeof T.center] ?? T.center.approve;
     return fill(tpl, { center: locale === "ar" ? n.data.centerAr : n.data.centerEn, reason: n.data.reason });
+  }
+  if (n.kind.startsWith("booking_")) {
+    const b = B[n.kind as keyof typeof B];
+    if (!b) return "";
+    return fill(b, { ...n.data, center: locale === "ar" ? n.data.centerAr : n.data.centerEn, service: locale === "ar" ? n.data.serviceAr : n.data.serviceEn });
   }
   const tpl = T.kinds[n.kind as keyof typeof T.kinds];
   return tpl ? fill(tpl, n.data) : "";
@@ -45,18 +50,18 @@ export default async function NotificationsPage({ params }: PageProps<"/[lang]/a
       ) : (
         <ul className="divide-y divide-line overflow-hidden rounded-[var(--radius-lg)] border border-line bg-surface">
           {items.map((n) => {
-            const Icon = ICONS[n.kind] ?? Bell;
+            const Icon = ICONS[n.kind] ?? (n.kind.startsWith("booking_") ? CalendarCheck : Bell);
             return (
               <li key={n.id}>
                 <form action={openNotification}>
                   <input type="hidden" name="id" value={n.id} />
                   <input type="hidden" name="locale" value={locale} />
                   <button type="submit" className={cn("flex w-full items-start gap-3 p-4 text-start hover:bg-canvas", !n.readAt && "bg-brand-50/60")}>
-                    <span className={cn("mt-0.5 grid size-9 shrink-0 place-items-center rounded-full", n.kind === "listing_approved" ? "bg-success-50 text-success-700" : n.kind.endsWith("rejected") || n.kind.endsWith("taken_down") ? "bg-danger-50 text-danger-700" : "bg-navy-900/[0.06] text-ink-2")}>
+                    <span className={cn("mt-0.5 grid size-9 shrink-0 place-items-center rounded-full", n.kind === "listing_approved" || n.kind === "booking_confirmed" || n.kind === "booking_alternative_accepted" ? "bg-success-50 text-success-700" : n.kind.endsWith("rejected") || n.kind.endsWith("taken_down") || n.kind === "booking_declined" || n.kind.startsWith("booking_cancelled") ? "bg-danger-50 text-danger-700" : "bg-navy-900/[0.06] text-ink-2")}>
                       <Icon className="size-4" aria-hidden />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span dir="auto" className={cn("block text-sm leading-relaxed", !n.readAt ? "font-semibold text-ink" : "text-ink-2")}>{render(n, T, locale)}</span>
+                      <span dir="auto" className={cn("block text-sm leading-relaxed", !n.readAt ? "font-semibold text-ink" : "text-ink-2")}>{render(n, T, dict.booking.notif, locale)}</span>
                       <span className="mt-0.5 block text-xs text-ink-3">{formatRelative(n.createdAt, locale)}</span>
                     </span>
                     {!n.readAt && <span className="mt-2 size-2.5 shrink-0 rounded-full bg-brand-600" aria-hidden />}

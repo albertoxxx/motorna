@@ -20,6 +20,8 @@ import { StaffPanel } from "@/components/care/staff-panel";
 import { SubmitApplicationButton } from "@/components/care/submit-button";
 import { MakesEditor } from "@/components/care/makes-editor";
 import { PhotosPanel } from "@/components/care/photos-panel";
+import { CenterSubnav } from "@/components/care/center-subnav";
+import { centerBookingCounts } from "@/server/bookings";
 
 export const metadata: Metadata = { robots: { index: false } };
 
@@ -40,7 +42,7 @@ export default async function CenterDashboard({ params }: PageProps<"/[lang]/cen
   if (!centerId) notFound();
   const role = await staffRole(user.id, centerId);
   if (!role) redirect(`/${locale}`);
-  const [ws, cities, allMakes] = await Promise.all([centerWorkspace(centerId), getCities(), getMakes()]);
+  const [ws, cities, allMakes, counts] = await Promise.all([centerWorkspace(centerId), getCities(), getMakes(), centerBookingCounts(centerId)]);
   if (!ws) notFound();
   const { center: c } = ws;
   const D = dict.care.dash;
@@ -70,6 +72,8 @@ export default async function CenterDashboard({ params }: PageProps<"/[lang]/cen
         <Badge tone={careStatusTone(c.status)}>{dict.care.enums.status[c.status]}</Badge>
       </div>
       <p className="mt-1 text-sm text-ink-3">{dict.care.providers[c.category].short} · {D.role}: {dict.care.enums.staffRole[role]}</p>
+
+      <CenterSubnav locale={locale} slug={c.slug} active="dashboard" labels={dict.booking.subnav} actionCount={counts.action} />
 
       <Notice tone={tone} className="mt-5">
         <p>{D.statusBody[c.status]}</p>

@@ -47,3 +47,8 @@ export function formatRelative(d: Date | string, locale: Locale, now = new Date(
 export function localName(row: { nameAr: string; nameEn: string }, locale: Locale) {
   return locale === "ar" ? row.nameAr : row.nameEn;
 }
+
+/** Appointment date and time, always in Cairo time (bookings are stored in UTC). */
+export function formatAppointment(d: Date | string, locale: Locale) {
+  return formatDate(d, locale, { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: "Africa/Cairo" });
+}

@@ -473,4 +473,9 @@ export async function centerMonthlyReport(centerId: string, month: string) {
   };
 }
 
+/** Customer contact details stay visible to the provider while active and for 30 days after the booking ends. */
+export function providerSeesContact(b: { status: BookingStatus; updatedAt: Date }, now = new Date()) {
+  return !FINAL.includes(b.status) || now.getTime() - b.updatedAt.getTime() < 30 * 86_400_000;
+}
+
 export { ACTIVE };

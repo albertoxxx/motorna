@@ -18,6 +18,8 @@ export default async function AdminLayout({ children, params }: LayoutProps<"/[l
             { href: "/admin/listings", label: A.moderation },
             { href: "/admin/reports", label: A.reports },
             { href: "/admin/centers", label: dict.care.admin.centers },
+            { href: "/admin/bookings", label: dict.booking.admin.bookings },
+            { href: "/admin/commission", label: dict.booking.admin.commission },
             { href: "/admin/audit", label: A.audit },
           ]}
         />

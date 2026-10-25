@@ -607,3 +607,24 @@ export async function removeClosure(centerId: string, closureId: string): Promis
   revalidate({ reference: "", centerSlug: s.center.slug });
   return ok(null);
 }
+
+/* ============================ Reads for the wizard ============================ */
+
+/**
+ * Bookable start times for a service on a Cairo date. Slot mode: only times with free capacity.
+ * Manual mode: every start inside opening hours (capacity is checked when the provider accepts).
+ */
+export async function bookingTimes(centerId: string, serviceId: string, date: string): Promise<ActionResult<{ start: string; label: string }[]>> {
+  if (!UUID.safeParse(centerId).success || !UUID.safeParse(serviceId).success || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return fail("validation");
+  if (!(await centerBookable(centerId))) return fail("bookingUnavailable");
+  const [svc] = await db.select({ d: SV.durationMin }).from(SV).where(and(eq(SV.id, serviceId), eq(SV.centerId, centerId), eq(SV.active, true), eq(SV.bookable, true)));
+  if (!svc) return fail("bookingUnavailable");
+  const settings = await bookingSettings(centerId);
+  if (settings.mode === "slots") {
+    const { availableSlots } = await import("@/server/bookings");
+    return ok(await availableSlots(centerId, svc.d, date));
+  }
+  const cfg = await scheduleConfig(centerId);
+  const { daySlots } = await import("@/lib/booking");
+  return ok(daySlots({ ...cfg, capacity: Number.MAX_SAFE_INTEGER }, date, svc.d, []).map((s) => ({ start: s.start.toISOString(), label: s.label })));
+}

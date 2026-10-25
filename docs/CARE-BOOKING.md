@@ -1,6 +1,6 @@
 # MOTORNA Care — booking and commission plan
 
-Status: **Phase A (design) — written 2026-10-25.** Built on branch `care-booking`. Nothing here is live until migration `0008_care_booking` is applied and the branch is deployed with explicit approval.
+Status: **Built on branch `care-booking` (2026-10-25), not deployed.** Migration `0008_care_booking` has not been run on production. The pilot is off for every center by default.
 
 ## 1. Audit — what exists vs. what's needed
 
@@ -153,3 +153,92 @@ Every check runs on the server. Lists are always filtered by `customer_id` or by
 - **Email / SMS / push notifications:** not operational until a domain and providers exist.
 - **Legal review:** the commission contract, provider terms, booking terms and privacy notice need review by an Egyptian lawyer and accountant (VAT / e-invoicing on commission).
 - **Reminders:** daily only, because of the Vercel Hobby cron limit.
+
+## 10. As built (branch `care-booking`)
+
+**Migration:** `drizzle/0008_care_booking.sql`, with its update script `supabase/update-2026-10-25-care-booking.sql`.
+- Additive only: the `estimate` price mode, two new `center_services` columns (`price_max_egp`, `bookable`), and 14 new tables.
+- 4 integrity triggers:
+  - `booking_events` is append-only.
+  - `commission_adjustments` is append-only.
+  - `commission_ledger`: rows are created only for completed bookings and start as `pending_verification`. Amounts are frozen, rows are never deleted, `settled` only from `payable`, and settled/waived rows are final.
+  - Active or ended agreements are immutable.
+- `supabase/setup.sql` was regenerated for fresh projects such as staging.
+- On a prod-like copy, the update ran twice cleanly. Result: `9 | 14 | 4 | 0 | 1 | 0` (migrations | booking tables | guards | pilots enabled | listings kept | centers kept).
+
+**Code**
+
+| Area | Files |
+|---|---|
+| Rules (pure) | `src/lib/booking.ts`: state machine, Cairo time, slots and capacity, commission, schemas |
+| Engine | `src/server/booking-engine.ts`: row locks, capacity checks, transitions with event and audit, notifications, ledger, daily job |
+| Reads | `src/server/bookings.ts` |
+| Actions | `src/server/actions/bookings.ts` (customer and provider), `src/server/actions/booking-admin.ts` (pilot, disputes, reviews, agreements, ledger, settlements) |
+| Daily job | `GET /api/cron/care`. It needs `CRON_SECRET` and runs daily at 15:00 UTC via `vercel.json` |
+| Customer UI | `/care/centers/[slug]/book` (wizard), `/account/bookings`, `/account/bookings/[ref]`, `/account/garage` |
+| Provider UI | `/center/[slug]/bookings`, `/center/[slug]/bookings/[ref]`, `/center/[slug]/schedule`, `/center/[slug]/reports` |
+| Admin UI | `/admin/bookings`, `/admin/bookings/[ref]`, `/admin/commission`, `/admin/commission/[centerId]`, plus the pilot switch on `/admin/centers/[id]` |
+
+**Decisions in code**
+- The completion confirmation and dispute window is 7 days.
+  - A "confirm or report" reminder goes out on day 5.
+  - Unanswered records auto-confirm after day 7.
+- A late cancellation is a flag only (`late_cancel`). There is no fee, and none is shown.
+- A provider can accept a requested time at short notice, but never over capacity.
+- Proposals and slot-mode requests hold capacity until they are answered.
+- A provider's "not completed" becomes `cancelled_provider` with the reason. Only owners and managers can do this.
+- The customer's phone is visible to that center's staff while the booking is active, and for 30 days after it ends.
+
+## 11. Testing in staging (before any production step)
+
+1. **Create the staging database.** In Supabase, create a new free project (for example `motorna-staging`) in the same region as production.
+   - In its SQL editor, run `supabase/setup.sql` (all migrations, reference data, RLS lock-down).
+   - Create storage buckets `media` (public) and `care-private` (private).
+   - Create S3 access keys under Storage → S3 connection.
+2. **Point Vercel previews at staging.** In Vercel → Project → Settings → Environment Variables, add these with **Preview** scope only:
+   - `DATABASE_URL`: the staging pooler URL.
+   - `BETTER_AUTH_SECRET`: a new random value.
+   - The `S3_*` variables for the staging project, plus `S3_PRIVATE_BUCKET=care-private`.
+   - `CRON_SECRET`.
+   - Leave `EMAIL_PROVIDER` unset.
+   - Do not change the Production values.
+3. **Deploy the preview.** Push branch `care-booking`. Vercel builds a Preview URL that uses staging data only.
+4. **Create an admin.** Sign up on the preview with your admin email. In the staging SQL editor, run `update users set role = 'admin' where email = '<you>';`.
+5. **Prepare a test center.** Sign up a second account as the provider and apply at `/care/apply`.
+   - As admin, review and approve it. Use clearly fake test documents, on staging only.
+   - Add hours and a bookable service.
+6. **Enable the pilot.** As admin, open `/admin/centers/<id>` → "Enable booking pilot".
+   - As the provider, open `/center/<slug>/schedule` → "Accept online bookings" → Save.
+7. **Book as a customer.** With a third account, open the center page → "Book an appointment". Complete the wizard in Arabic, then in English. Check:
+   - The review step shows the provider, service, price type, Cairo times, cancellation policy and data sharing.
+   - After submitting, the booking shows "Waiting for the provider" and **no confirmed time**.
+8. **Provider responses.** As the provider, open Bookings → the request:
+   - Accept one request.
+   - Propose another time on a second request.
+   - Ask a question on a third.
+   - Decline a fourth.
+   - As the customer, accept or decline the proposal and reply to the question. Check the bell notifications on both sides.
+9. **Cancellation.** Cancel one booking more than 12 h ahead (no flag). Cancel one inside 12 h: it shows "Late cancellation (no fee)".
+10. **Completion and commission.**
+    - As admin, open `/admin/commission/<id>` → create a draft agreement (for example 10%) → Activate.
+    - As the provider, check in a confirmed booking and record completion with an amount. Check that the ledger row is "Awaiting verification", not paid.
+    - As the customer, confirm completion: the ledger becomes "Confirmed". Leave a review.
+11. **Dispute.** On another completed booking, report a problem as the customer. The booking becomes "Under review" and the ledger "Disputed". As admin, resolve it at `/admin/bookings/<ref>`.
+12. **Settlement.** As admin, issue a settlement for the period: rows become "In a settlement". Record the payment with a reference: rows become "Settled". Confirm the provider sees this under Reports and can't record payments.
+13. **Daily job.** Trigger it once:
+    ```
+    curl -H "Authorization: Bearer $CRON_SECRET" https://<preview-url>/api/cron/care
+    ```
+    It returns counts. A second call must not send duplicate reminders.
+14. **Isolation.** A different provider and a different customer must get 404 on each other's booking URLs.
+15. **Automated e2e.** Run `tests/e2e/booking.mjs` against the preview:
+    - Set `BASE_URL`, plus `DATABASE_URL` set to the **staging** URL with `ALLOW_STAGING_DB=1`.
+    - Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` for the staging admin.
+    - The script refuses to run without `ALLOW_STAGING_DB=1` when the database is on Supabase.
+
+Only after staging passes, and with your approval:
+1. You run `supabase/update-2026-10-25-care-booking.sql` on production. Expected result: `9 | 14 | 4 | 0 | 1 | 0`.
+2. Add `CRON_SECRET` to the Production environment variables.
+3. Merge to main.
+
+The pilot stays off until you enable it for a real, approved provider with a signed agreement.

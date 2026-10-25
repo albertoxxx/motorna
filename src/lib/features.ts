@@ -4,6 +4,9 @@
  */
 export const features = {
   assistant: process.env.NEXT_PUBLIC_FEATURE_ASSISTANT === "1",
-  /** MOTORNA Care booking/payment. Off until the full workflow, notifications and payments are built and tested. */
+  /**
+   * Online payment for MOTORNA Care. Off: there is no payment provider. Booking itself is gated
+   * per center by the admin-only pilot switch (center_booking_settings.pilot_enabled), off by default.
+   */
   careBooking: false,
 } as const;

@@ -12,6 +12,8 @@ export default async function AccountLayout({ children, params }: LayoutProps<"/
           locale={locale}
           links={[
             { href: "/account/notifications", label: dict.nav.notifications },
+            { href: "/account/bookings", label: dict.booking.myBookings },
+            { href: "/account/garage", label: dict.booking.garage.vehicles },
             { href: "/account/listings", label: dict.nav.myListings },
             { href: "/account/favorites", label: dict.nav.favorites },
             { href: "/account/messages", label: dict.nav.messages },
