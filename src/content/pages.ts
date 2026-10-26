@@ -19,9 +19,11 @@ const ar: Record<PageKey, StaticPage> = {
     intro: "الثقة بتيجي من الوضوح. ده اللي بنعمله فعلًا النهارده، واللي لسه جاي.",
     sections: [
       { heading: "اللي بنراجعه دلوقتي", list: ["إن الصور حقيقية وللعربية نفسها ومش منقولة من النت", "إن الماركة والموديل والسنة متطابقين مع الصور", "إن السعر منطقي ومش طُعم لجذب الناس", "إن الوصف مفيهوش أرقام تحويل أو طلب عربون"] },
-      { heading: "اللي مش بنراجعه لسه", paragraphs: ["لحد دلوقتي ما بنتحققش من هوية البائع، ولا من ملكية العربية، ولا من العداد، ولا من تاريخ الحوادث، ولا من المخالفات. أي شارة توثيق هتظهر في المستقبل هتكون مربوطة بفحص فعلي، وهنوضّح بالظبط اتفحص إيه وإمتى."] },
+      { heading: "رخصة العربية (اختياري)", paragraphs: ["البائع يقدر يرفع رخصة العربية. فريق موتورنا بيتأكد إنها واضحة وسارية، وإن الماركة والموديل والسنة مطابقين للإعلان، وبعدها الإعلان بياخد علامة «رخصة العربية اتراجعت» مع تاريخ المراجعة. الرخصة نفسها مش بتظهر لحد، وبتتمسح بعد المراجعة بـ 30 يوم. لو بيانات العربية في الإعلان اتغيرت أو الرخصة انتهت، العلامة بتختفي لحد ما تتراجع تاني. ده مش تحقق رسمي من المرور."] },
+      { heading: "رقم موبايل البائع", paragraphs: ["لما يبقى متاح، البائع هيأكد رقمه بكود SMS، وهيظهر «رقم الموبايل اتأكد». لحد دلوقتي الخاصية دي مش شغالة، فكل الأرقام بتظهر «لم يتم التحقق»."] },
+      { heading: "اللي مش بنراجعه لسه", paragraphs: ["ما بنتحققش من هوية البائع الشخصية، ولا من ملكية العربية رسميًا، ولا من العداد، ولا من تاريخ الحوادث، ولا من المخالفات. أي علامة بتظهر مربوطة بمراجعة فعلية، ومكتوب جنبها اتراجع إيه وإمتى."] },
       { heading: "لو شفت حاجة غلط", paragraphs: ["استخدم زرار «بلّغ عن الإعلان» في صفحة العربية. البلاغ بيوصل للمشرفين، ويقدروا يشيلوا الإعلان أو يوقفوا الحساب."] },
-      { heading: "قريبًا", list: ["توثيق هوية البائعين والمعارض", "حجز فحص فني من مراكز شريكة مع تقرير مفصّل", "تقدير السعر العادل مع توضيح مستوى الثقة في التقدير"] },
+      { heading: "قريبًا", list: ["تأكيد رقم موبايل البائع برسالة SMS", "حجز فحص فني من مراكز شريكة مع تقرير مفصّل", "تقدير السعر العادل مع توضيح مستوى الثقة في التقدير"] },
     ],
   },
   faq: {
@@ -55,6 +57,7 @@ const ar: Record<PageKey, StaticPage> = {
       { heading: "بنستخدمها في إيه", list: ["تشغيل الحساب والإعلانات والرسائل", "منع الاحتيال والإساءة ومراجعة البلاغات", "التواصل معاك بخصوص حسابك"] },
       { heading: "المشاركة", paragraphs: ["مش بنبيع بياناتك. رقم موبايلك مش بيظهر غير لو انت فعّلت إظهاره."] },
       { heading: "موتورنا كير والحجوزات", list: ["طلبات المراكز: بيانات النشاط والمستندات الرسمية. المستندات محفوظة في مساحة خاصة ومش بيشوفها غير فريق المراجعة. أسماء الفنيين مش بتظهر للعامة.", "لما تحجز: اسمك ورقم موبايلك وبيانات العربية وملاحظاتك بتتبعت للمركز اللي حجزت عنده بس، عشان يجهّز للميعاد ويتواصل معاك.", "بنحتفظ بسجل الحجز وحالاته، واللي المركز بيسجله بعد الخدمة (اللي اتعمل والمبلغ) كسجل صيانة لعربيتك ولحساب العمولة مع المركز.", "عربياتك المحفوظة بتظهر لك إنت بس."] },
+      { heading: "التحقق", list: ["رخصة العربية (لو رفعتها): بتتحفظ في مساحة خاصة، ومش بيشوفها غير فريق المراجعة، وبتتمسح بعد المراجعة بـ 30 يوم. بنحتفظ بقرار المراجعة وتاريخه بس.", "تأكيد الموبايل (لما يتاح): بنبعت كود برسالة SMS عن طريق مزوّد رسائل، وبنحتفظ بنسخة مشفرة من الكود لمدة قصيرة."] },
       { heading: "الإشعارات", paragraphs: ["بنبعت إشعارات جوه الموقع عن إعلاناتك ورسايلك وحجوزاتك. الإيميل بيتبعت بس لما يكون مفعّل."] },
       { heading: "حقوقك", paragraphs: ["تقدر تعدّل بياناتك أو تحذف إعلاناتك في أي وقت. لحذف الحساب بالكامل تواصل معانا."] },
     ],
@@ -80,9 +83,11 @@ const en: Record<PageKey, StaticPage> = {
     intro: "Trust comes from being specific. Here is what we actually do today, and what's coming.",
     sections: [
       { heading: "What we check now", list: ["Photos are real, of this car, and not copied from the web", "Make, model and year match the photos", "The price is plausible and not bait", "The description has no transfer numbers or deposit requests"] },
-      { heading: "What we don't check yet", paragraphs: ["We don't currently verify seller identity, ownership, mileage, accident history or traffic fines. Any verification badge we add later will be tied to an actual check, with exactly what was checked and when."] },
+      { heading: "Vehicle licence (optional)", paragraphs: ["Sellers can upload the car's licence. The MOTORNA team checks that it's readable and current, and that the make, model and year match the listing; the listing then shows a \"Vehicle licence reviewed\" badge with the review date. The licence itself is never shown and is deleted 30 days after review. If the listing's car details change or the licence expires, the badge disappears until it's reviewed again. This is not an official check with the traffic authority."] },
+      { heading: "Seller's phone", paragraphs: ["When available, sellers will confirm their number with an SMS code and the listing will show \"Verified\". This isn't live yet, so every number currently shows \"Not verified\"."] },
+      { heading: "What we don't check yet", paragraphs: ["We don't verify the seller's personal identity, official ownership, mileage, accident history or traffic fines. Every badge is tied to an actual review and says what was checked and when."] },
       { heading: "If something looks wrong", paragraphs: ["Use “Report listing” on the car's page. Reports go to MOTORNA moderators, who can remove the listing or suspend the account."] },
-      { heading: "Coming next", list: ["Identity verification for sellers and dealers", "Inspection booking with partner centres and a detailed report", "Fair-price estimates that show how confident the estimate is"] },
+      { heading: "Coming next", list: ["Seller phone verification by SMS", "Inspection booking with partner centres and a detailed report", "Fair-price estimates that show how confident the estimate is"] },
     ],
   },
   faq: {
@@ -116,6 +121,7 @@ const en: Record<PageKey, StaticPage> = {
       { heading: "How we use it", list: ["To run your account, listings and messages", "To prevent fraud and abuse and review reports", "To contact you about your account"] },
       { heading: "Sharing", paragraphs: ["We don't sell your data. Your mobile number is only shown if you enable it."] },
       { heading: "MOTORNA Care and bookings", list: ["Provider applications: business details and official documents. Documents are stored privately and seen only by the review team. Technicians' names aren't shown publicly.", "When you book: your name, mobile number, vehicle details and notes go only to the provider you book with, so they can prepare and contact you.", "We keep the booking history and status changes, and what the provider records after the service (work done and amount) as your vehicle's service record and to calculate commission with the provider.", "Your saved vehicles are visible only to you."] },
+      { heading: "Verification", list: ["Vehicle licence (if you upload it): stored privately, seen only by the review team, and deleted 30 days after review. We keep only the decision and its date.", "Phone verification (when available): we send a code by SMS through a messaging provider and keep a hashed copy of the code for a short time."] },
       { heading: "Notifications", paragraphs: ["We send in-app notifications about your listings, messages and bookings. Email is sent only when it's enabled."] },
       { heading: "Your rights", paragraphs: ["You can edit your details or delete your listings at any time. To delete your account entirely, contact us."] },
     ],

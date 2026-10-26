@@ -95,7 +95,7 @@ export async function conversationThread(userId: string, conversationId: string)
 /* Admin */
 
 export async function adminStats() {
-  const [row] = await db.execute<{ pending: number; published: number; reports: number; users: number; centersQueue: number; disputes: number; bookingsWaiting: number }>(sql`
+  const [row] = await db.execute<{ pending: number; published: number; reports: number; users: number; centersQueue: number; disputes: number; bookingsWaiting: number; licences: number }>(sql`
     SELECT
       (SELECT count(*)::int FROM listings WHERE status = 'pending_review' AND deleted_at IS NULL) AS pending,
       (SELECT count(*)::int FROM listings WHERE status = 'published' AND deleted_at IS NULL) AS published,
@@ -103,7 +103,8 @@ export async function adminStats() {
       (SELECT count(*)::int FROM users) AS users,
       (SELECT count(*)::int FROM service_centers WHERE status IN ('applied','under_review')) AS "centersQueue",
       (SELECT count(*)::int FROM booking_disputes WHERE status IN ('open','reviewing')) AS disputes,
-      (SELECT count(*)::int FROM bookings WHERE status = 'pending_provider') AS "bookingsWaiting"
+      (SELECT count(*)::int FROM bookings WHERE status = 'pending_provider') AS "bookingsWaiting",
+      (SELECT count(*)::int FROM listing_licence_checks WHERE status = 'pending') AS licences
   `).then((r) => r.rows);
   return row;
 }
@@ -199,7 +200,7 @@ export async function auditList(limit = 100) {
 
 export async function getProfile(userId: string) {
   const [u] = await db
-    .select({ id: U.id, name: U.name, email: U.email, phone: U.phone, showPhone: U.showPhone, cityId: U.cityId, locale: U.locale })
+    .select({ id: U.id, name: U.name, email: U.email, phone: U.phone, showPhone: U.showPhone, cityId: U.cityId, locale: U.locale, phoneVerifiedAt: U.phoneVerifiedAt, phoneVerifiedNumber: U.phoneVerifiedNumber })
     .from(U)
     .where(eq(U.id, userId));
   return u ?? null;
@@ -207,7 +208,16 @@ export async function getProfile(userId: string) {
 
 export async function getPublicSeller(userId: string) {
   const [u] = await db
-    .select({ id: U.id, name: U.name, role: U.role, createdAt: U.createdAt, suspendedAt: U.suspendedAt, cityId: U.cityId })
+    .select({
+      id: U.id,
+      name: U.name,
+      role: U.role,
+      createdAt: U.createdAt,
+      suspendedAt: U.suspendedAt,
+      cityId: U.cityId,
+      // Only the boolean leaves the server, never the number.
+      phoneVerified: sql<boolean>`(${U.phone} IS NOT NULL AND ${U.phoneVerifiedAt} IS NOT NULL AND ${U.phoneVerifiedNumber} = ${U.phone})`,
+    })
     .from(U)
     .where(eq(U.id, userId));
   return u && !u.suspendedAt ? u : null;

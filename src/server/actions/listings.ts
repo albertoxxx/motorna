@@ -108,7 +108,15 @@ export async function saveListing(
     const [me] = await db.select({ phone: schema.users.phone }).from(schema.users).where(eq(schema.users.id, user.id));
     if (!me?.phone) return fail("validation", { sellerPhone: "phone" });
   }
-  if (input.showPhone && input.sellerPhone) await db.update(schema.users).set({ phone: input.sellerPhone }).where(eq(schema.users.id, user.id));
+  if (input.showPhone && input.sellerPhone)
+    await db
+      .update(schema.users)
+      .set({
+        phone: input.sellerPhone,
+        phoneVerifiedAt: sql`CASE WHEN ${schema.users.phoneVerifiedNumber} = ${input.sellerPhone} THEN ${schema.users.phoneVerifiedAt} ELSE NULL END`,
+        phoneVerifiedNumber: sql`CASE WHEN ${schema.users.phoneVerifiedNumber} = ${input.sellerPhone} THEN ${schema.users.phoneVerifiedNumber} ELSE NULL END`,
+      })
+      .where(eq(schema.users.id, user.id));
 
   const values = {
     makeId: input.makeId,

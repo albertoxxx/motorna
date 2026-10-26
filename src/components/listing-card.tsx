@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Fuel, Gauge, MapPin, Settings2, ImageIcon } from "lucide-react";
+import { FileCheck2, Fuel, Gauge, MapPin, Settings2, ImageIcon } from "lucide-react";
 import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/dictionaries/ar";
 import type { ListingCardData } from "@/server/listings";
@@ -71,6 +71,12 @@ export function ListingCard({
             </Link>
           </h3>
           {item.trim && <p className="mt-0.5 truncate text-sm text-ink-3">{item.trim}</p>}
+          {item.licenceVerified && (
+            <p className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-success-700">
+              <FileCheck2 className="size-3.5" aria-hidden />
+              {dict.verify.badge}
+            </p>
+          )}
         </div>
         <p className="tabular flex flex-wrap items-baseline gap-x-2 text-base font-bold text-navy-900 sm:text-lg">
           {formatPrice(item.priceEgp, locale)}

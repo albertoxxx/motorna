@@ -1,4 +1,5 @@
 import "server-only";
+import { licenceVerifiedSql } from "@/server/verification";
 import { and, asc, desc, eq, gte, ilike, inArray, isNull, lte, ne, or, sql, type SQL } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { storage } from "@/lib/storage";
@@ -28,6 +29,8 @@ export type ListingCardData = {
   coverUrl: string | null;
   imageCount: number;
   publishedAt: Date | null;
+  /** The listing has a current, matching, admin-reviewed vehicle licence. */
+  licenceVerified?: boolean;
 };
 
 const coverKey = sql<string | null>`(
@@ -58,6 +61,7 @@ const cardColumns = {
   coverKey,
   imageCount,
   publishedAt: L.publishedAt,
+  licenceVerified: licenceVerifiedSql,
 };
 
 type CardRow = { coverKey: string | null } & Omit<ListingCardData, "coverUrl">;
@@ -312,7 +316,7 @@ export async function countSellerActive(sellerId: string) {
 }
 
 export async function myListings(userId: string) {
-  const [rows, reasons] = await Promise.all([
+  const [rows, reasons, pendingLicences] = await Promise.all([
     cardQuery()
       .where(and(eq(L.sellerId, userId), isNull(L.deletedAt)))
       .orderBy(desc(L.updatedAt)),
@@ -320,9 +324,15 @@ export async function myListings(userId: string) {
       .select({ id: L.id, reason: L.rejectionReason })
       .from(L)
       .where(and(eq(L.sellerId, userId), isNull(L.deletedAt), eq(L.status, "rejected"))),
+    db
+      .select({ id: schema.listingLicenceChecks.listingId })
+      .from(schema.listingLicenceChecks)
+      .innerJoin(L, eq(L.id, schema.listingLicenceChecks.listingId))
+      .where(and(eq(L.sellerId, userId), eq(schema.listingLicenceChecks.status, "pending"))),
   ]);
   const byId = new Map(reasons.map((r) => [r.id, r.reason]));
-  return rows.map((r) => ({ ...toCard(r), rejectionReason: byId.get(r.id) ?? null }));
+  const pending = new Set(pendingLicences.map((p) => p.id));
+  return rows.map((r) => ({ ...toCard(r), rejectionReason: byId.get(r.id) ?? null, licencePending: pending.has(r.id) }));
 }
 
 export async function listingsByIds(ids: string[]) {

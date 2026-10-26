@@ -3,7 +3,7 @@ import { isColorKey } from "@/lib/validation";
 import { BackToResults } from "@/components/back-to-results";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarDays, Gauge, Settings2, Fuel, MapPin, ShieldAlert, UserRound, Pencil, MessageSquare } from "lucide-react";
+import { CalendarDays, FileCheck2, Gauge, Settings2, Fuel, MapPin, ShieldAlert, UserRound, Pencil, MessageSquare } from "lucide-react";
 import { resolveLocale } from "@/i18n/server";
 import { t } from "@/i18n/t";
 import type { Locale } from "@/i18n/config";
@@ -18,6 +18,7 @@ import { ContactPanel } from "@/components/contact-panel";
 import { ReportButton } from "@/components/report-button";
 import { ShareButton } from "@/components/share-button";
 import { TrustPanel } from "@/components/trust-panel";
+import { listingTrust } from "@/server/verification";
 import { FavoriteButton } from "@/components/favorite-button";
 import { ListingCard } from "@/components/listing-card";
 import { PlateTag } from "@/components/logo";
@@ -67,10 +68,11 @@ export default async function ListingPage({ params }: PageProps<"/[lang]/cars/[s
   const visible = isPubliclyVisible(l.status, l.deletedAt) && !data.seller.suspendedAt;
   if (!visible && !isOwner && !isAdmin) notFound();
 
-  const [saved, similar, sellerActive] = await Promise.all([
+  const [saved, similar, sellerActive, trust] = await Promise.all([
     favoriteIds(user?.id, [l.id]),
     l.status === "published" ? similarListings(l) : Promise.resolve([]),
     countSellerActive(l.sellerId),
+    listingTrust({ id: l.id, sellerId: l.sellerId, makeId: l.makeId, modelId: l.modelId, year: l.year }),
   ]);
   const similarSaved = await favoriteIds(user?.id, similar.map((s) => s.id));
 
@@ -224,6 +226,7 @@ export default async function ListingPage({ params }: PageProps<"/[lang]/cars/[s
           <div className="mb-1 flex flex-wrap items-center gap-2">
             {l.status !== "published" && <Badge tone={statusTone(l.status)}>{dict.enums.status[l.status]}</Badge>}
             <Badge>{dict.enums.condition[l.condition]}</Badge>
+            {trust.licence.state === "verified" && <Badge tone="success" icon={<FileCheck2 className="size-3.5" aria-hidden />}>{dict.verify.badge}</Badge>}
           </div>
           <h1 className="text-2xl font-bold leading-tight">
             {make} {model} <span className="tabular">{l.year}</span>
@@ -288,7 +291,7 @@ export default async function ListingPage({ params }: PageProps<"/[lang]/cars/[s
           )}
         </div>
 
-        <TrustPanel listingStatus={l.status} dict={dict} locale={locale} />
+        <TrustPanel listingStatus={l.status} dict={dict} locale={locale} phoneVerified={trust.phone} licence={trust.licence} />
 
         <div className="rounded-[var(--radius-lg)] border border-line bg-surface p-5">
           <h2 className="mb-3 text-sm font-semibold text-ink-3">{L.seller}</h2>

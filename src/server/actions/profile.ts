@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/db";
 import { getCurrentUser } from "@/server/session";
@@ -26,6 +26,9 @@ export async function updateProfile(raw: Record<string, unknown>): Promise<Actio
       showPhone: v.phone ? v.showPhone : false,
       cityId: v.cityId ?? null,
       locale: v.locale,
+      // A verified phone stays verified only while it is still the profile number.
+      phoneVerifiedAt: sql`CASE WHEN ${schema.users.phoneVerifiedNumber} = ${v.phone ?? null} THEN ${schema.users.phoneVerifiedAt} ELSE NULL END`,
+      phoneVerifiedNumber: sql`CASE WHEN ${schema.users.phoneVerifiedNumber} = ${v.phone ?? null} THEN ${schema.users.phoneVerifiedNumber} ELSE NULL END`,
     })
     .where(eq(schema.users.id, user.id));
   revalidatePath("/[lang]/account/profile", "page");

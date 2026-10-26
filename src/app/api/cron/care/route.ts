@@ -1,4 +1,5 @@
 import { runCareMaintenance } from "@/server/booking-engine";
+import { purgeLicenceFiles } from "@/server/verification";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,6 @@ export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret || secret.length < 16) return Response.json({ error: "not_configured" }, { status: 503 });
   if (req.headers.get("authorization") !== `Bearer ${secret}`) return Response.json({ error: "unauthorized" }, { status: 401 });
-  const result = await runCareMaintenance();
+  const result = { ...(await runCareMaintenance()), licenceFilesPurged: await purgeLicenceFiles() };
   return Response.json(result, { headers: { "cache-control": "no-store" } });
 }

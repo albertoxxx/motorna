@@ -1,4 +1,4 @@
--- MOTORNA database setup (generated 2026-10-25)
+-- MOTORNA database setup (generated 2026-10-26)
 -- Paste into Supabase → SQL Editor → Run. Safe to run once on an empty project.
 BEGIN;
 
@@ -906,6 +906,52 @@ DROP TRIGGER IF EXISTS "commission_agreements_guard_trg" ON "commission_agreemen
 CREATE TRIGGER "commission_agreements_guard_trg" BEFORE UPDATE OR DELETE ON "commission_agreements" FOR EACH ROW EXECUTE FUNCTION "commission_agreements_guard"();
 
 
+-- 0009_seller_verification.sql
+CREATE TYPE "public"."licence_check_status" AS ENUM('pending', 'accepted', 'rejected');
+CREATE TABLE "listing_licence_checks" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"listing_id" uuid NOT NULL,
+	"front_key" text,
+	"back_key" text,
+	"front_type" text,
+	"back_type" text,
+	"status" "licence_check_status" DEFAULT 'pending' NOT NULL,
+	"snapshot_make_id" smallint NOT NULL,
+	"snapshot_model_id" integer,
+	"snapshot_year" smallint NOT NULL,
+	"licence_expires_at" timestamp with time zone,
+	"review_note" text,
+	"reviewed_by_id" text,
+	"reviewed_at" timestamp with time zone,
+	"submitted_by_id" text NOT NULL,
+	"files_purged_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "listing_licence_checks_note_len" CHECK ("listing_licence_checks"."review_note" IS NULL OR char_length("listing_licence_checks"."review_note") <= 500)
+);
+
+CREATE TABLE "phone_verifications" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"user_id" text NOT NULL,
+	"phone" text NOT NULL,
+	"code_hash" text NOT NULL,
+	"attempts" smallint DEFAULT 0 NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL,
+	"consumed_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "phone_verifications_attempts" CHECK ("phone_verifications"."attempts" BETWEEN 0 AND 10)
+);
+
+ALTER TABLE "users" ADD COLUMN "phone_verified_at" timestamp with time zone;
+ALTER TABLE "users" ADD COLUMN "phone_verified_number" text;
+ALTER TABLE "listing_licence_checks" ADD CONSTRAINT "listing_licence_checks_listing_id_listings_id_fk" FOREIGN KEY ("listing_id") REFERENCES "public"."listings"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "listing_licence_checks" ADD CONSTRAINT "listing_licence_checks_reviewed_by_id_users_id_fk" FOREIGN KEY ("reviewed_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "listing_licence_checks" ADD CONSTRAINT "listing_licence_checks_submitted_by_id_users_id_fk" FOREIGN KEY ("submitted_by_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "phone_verifications" ADD CONSTRAINT "phone_verifications_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+CREATE INDEX "listing_licence_checks_listing_idx" ON "listing_licence_checks" USING btree ("listing_id","created_at");
+CREATE INDEX "listing_licence_checks_status_idx" ON "listing_licence_checks" USING btree ("status","created_at");
+CREATE UNIQUE INDEX "listing_licence_checks_one_pending" ON "listing_licence_checks" USING btree ("listing_id") WHERE "listing_licence_checks"."status" = 'pending';
+CREATE INDEX "phone_verifications_user_idx" ON "phone_verifications" USING btree ("user_id","created_at");
+
 -- Reference data: governorates
 INSERT INTO cities (id, slug, name_en, name_ar, is_launch, sort_order) VALUES (1, 'alexandria', 'Alexandria', 'الإسكندرية', true, 1) ON CONFLICT (id) DO NOTHING;
 INSERT INTO cities (id, slug, name_en, name_ar, is_launch, sort_order) VALUES (2, 'cairo', 'Cairo', 'القاهرة', false, 2) ON CONFLICT (id) DO NOTHING;
@@ -1654,6 +1700,7 @@ INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('dcf935a2b48
 INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('ed6847f25fffdc4b68cfbd14be3dd8e4706063b48dfb609642d5e85c7ba3cbef', 1792915369555);
 INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('67c63f5fb637a5e5cdd7ed2b91efe9ad7d9eaf16cbe3d84e459cf7fc1af57e98', 1792916603683);
 INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('405141f61e000f3436fa141375ff2808427904623f95f7f1818d1a86be63c41f', 1792924459218);
+INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('eae86f13473485d46aae9921f4258014d2acc96697f83464fff90d7df142653c', 1793024763988);
 
 COMMIT;
 

@@ -120,6 +120,9 @@ export const users = pgTable(
     locale: text().notNull().default("ar"),
     suspendedAt: timestamp({ withTimezone: true }),
     suspensionReason: text(),
+    /** Set only after an SMS code sent to `phoneVerifiedNumber` was entered. Changing the phone voids it. */
+    phoneVerifiedAt: timestamp({ withTimezone: true }),
+    phoneVerifiedNumber: text(),
     ...timestamps,
   },
   (t) => [index("users_role_idx").on(t.role)],
@@ -1167,3 +1170,65 @@ export type Booking = typeof bookings.$inferSelect;
 export type BookingStatusDb = (typeof bookingStatus.enumValues)[number];
 export type DisputeKind = (typeof disputeKind.enumValues)[number];
 export type LedgerStatus = (typeof ledgerStatus.enumValues)[number];
+
+/* ------------------------------------------------------------------ */
+/* Seller verification: phone (SMS code) and vehicle licence review    */
+/* ------------------------------------------------------------------ */
+
+/** One-time SMS codes. Only a hash of the code is stored. */
+export const phoneVerifications = pgTable(
+  "phone_verifications",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    userId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    phone: text().notNull(),
+    codeHash: text().notNull(),
+    attempts: smallint().notNull().default(0),
+    expiresAt: timestamp({ withTimezone: true }).notNull(),
+    consumedAt: timestamp({ withTimezone: true }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("phone_verifications_user_idx").on(t.userId, t.createdAt), check("phone_verifications_attempts", sql`${t.attempts} BETWEEN 0 AND 10`)],
+);
+
+export const licenceCheckStatus = pgEnum("licence_check_status", ["pending", "accepted", "rejected"]);
+
+/**
+ * A seller's vehicle licence (رخصة العربية) submitted for one listing. Files live in private storage,
+ * are visible only to the seller and admins, and are deleted 30 days after the decision.
+ * The badge holds only while the listing still matches the make/model/year snapshot.
+ */
+export const listingLicenceChecks = pgTable(
+  "listing_licence_checks",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    listingId: uuid()
+      .notNull()
+      .references(() => listings.id, { onDelete: "cascade" }),
+    frontKey: text(),
+    backKey: text(),
+    frontType: text(),
+    backType: text(),
+    status: licenceCheckStatus().notNull().default("pending"),
+    snapshotMakeId: smallint().notNull(),
+    snapshotModelId: integer(),
+    snapshotYear: smallint().notNull(),
+    licenceExpiresAt: timestamp({ withTimezone: true }),
+    reviewNote: text(),
+    reviewedById: text().references(() => users.id, { onDelete: "set null" }),
+    reviewedAt: timestamp({ withTimezone: true }),
+    submittedById: text()
+      .notNull()
+      .references(() => users.id),
+    filesPurgedAt: timestamp({ withTimezone: true }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("listing_licence_checks_listing_idx").on(t.listingId, t.createdAt),
+    index("listing_licence_checks_status_idx").on(t.status, t.createdAt),
+    uniqueIndex("listing_licence_checks_one_pending").on(t.listingId).where(sql`${t.status} = 'pending'`),
+    check("listing_licence_checks_note_len", sql`${t.reviewNote} IS NULL OR char_length(${t.reviewNote}) <= 500`),
+  ],
+);

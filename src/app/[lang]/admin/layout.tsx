@@ -16,6 +16,7 @@ export default async function AdminLayout({ children, params }: LayoutProps<"/[l
           locale={locale}
           links={[
             { href: "/admin/listings", label: A.moderation },
+            { href: "/admin/licences", label: dict.verify.adminTitle },
             { href: "/admin/reports", label: A.reports },
             { href: "/admin/users", label: A.usersPage },
             { href: "/admin/centers", label: dict.care.admin.centers },

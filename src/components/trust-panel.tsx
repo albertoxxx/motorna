@@ -1,21 +1,30 @@
 import Link from "next/link";
 import { CircleCheck, CircleDashed, Clock } from "lucide-react";
 import type { Dictionary } from "@/i18n/dictionaries/ar";
+import type { LicenceState } from "@/lib/verification";
+import { formatDate } from "@/lib/format";
+import type { Locale } from "@/i18n/config";
 
 type State = "done" | "pending" | "none";
 
 /**
- * Each trust signal shown separately. Only "listing review" is backed by a
- * real process today (moderation); the others stay "not yet" until their
- * verification records exist.
+ * Each trust signal shown separately and only when backed by a real record:
+ * listing review (moderation), seller phone (SMS code), vehicle licence (admin review).
+ * Technical inspection stays "not inspected" until inspection reports exist.
  */
-export function TrustPanel({ listingStatus, dict, locale }: { listingStatus: string; dict: Dictionary; locale: string }) {
+export function TrustPanel({ listingStatus, dict, locale, phoneVerified = false, licence = { state: "none" } }: { listingStatus: string; dict: Dictionary; locale: Locale; phoneVerified?: boolean; licence?: LicenceState }) {
   const T = dict.listing.trust;
   const review: State = listingStatus === "published" || listingStatus === "sold" ? "done" : listingStatus === "pending_review" ? "pending" : "none";
-  const rows: { label: string; state: State; value: string }[] = [
+  const lic: State = licence.state === "verified" ? "done" : licence.state === "pending" ? "pending" : "none";
+  const rows: { label: string; state: State; value: string; sub?: string }[] = [
     { label: T.listingReview, state: review, value: review === "done" ? T.reviewed : review === "pending" ? T.inReview : T.notReviewed },
-    { label: T.sellerIdentity, state: "none", value: T.notVerified },
-    { label: T.documents, state: "none", value: T.notReviewed },
+    { label: T.sellerIdentity, state: phoneVerified ? "done" : "none", value: phoneVerified ? T.verified : T.notVerified },
+    {
+      label: T.documents,
+      state: lic,
+      value: lic === "done" ? T.reviewed : lic === "pending" ? T.inReview : T.notReviewed,
+      sub: licence.state === "verified" ? formatDate(licence.reviewedAt, locale) : undefined,
+    },
     { label: T.inspection, state: "none", value: T.notInspected },
   ];
   const icon = (s: State) =>
@@ -27,9 +36,9 @@ export function TrustPanel({ listingStatus, dict, locale }: { listingStatus: str
         {rows.map((r) => (
           <div key={r.label} className="flex items-center justify-between gap-3">
             <dt className="text-ink-2">{r.label}</dt>
-            <dd className={`flex items-center gap-1.5 font-medium ${r.state === "done" ? "text-success-700" : r.state === "pending" ? "text-warning-700" : "text-ink-3"}`}>
+            <dd className={`flex items-center gap-1.5 text-end font-medium ${r.state === "done" ? "text-success-700" : r.state === "pending" ? "text-warning-700" : "text-ink-3"}`}>
               {icon(r.state)}
-              {r.value}
+              <span>{r.value}{r.sub && <span className="block text-xs font-normal text-ink-3">{r.sub}</span>}</span>
             </dd>
           </div>
         ))}

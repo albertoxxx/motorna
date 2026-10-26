@@ -25,7 +25,7 @@ export const BOOKING_NOTIFICATION_KINDS = [
   "booking_dispute_resolved",
   "booking_review",
 ] as const;
-export const NOTIFICATION_KINDS = ["listing_approved", "listing_rejected", "listing_taken_down", "message", "center_status", ...BOOKING_NOTIFICATION_KINDS] as const;
+export const NOTIFICATION_KINDS = ["listing_approved", "listing_rejected", "listing_taken_down", "message", "center_status", "licence_accepted", "licence_rejected", ...BOOKING_NOTIFICATION_KINDS] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 type Tx = Pick<typeof db, "insert">;

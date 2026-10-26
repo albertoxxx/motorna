@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, CarFront } from "lucide-react";
+import { Plus, CarFront, FileCheck2 } from "lucide-react";
 import { resolveLocale } from "@/i18n/server";
 import { requireUser } from "@/server/session";
 import { myListings } from "@/server/listings";
@@ -49,6 +49,12 @@ export default async function MyListingsPage({ params }: PageProps<"/[lang]/acco
                 )}
                 {(l.status === "pending_review" || l.status === "draft") && (
                   <p className="text-sm text-ink-3">{dict.listing.statusNotice[l.status]}</p>
+                )}
+                {l.status !== "sold" && l.status !== "archived" && (
+                  <Link href={`/${locale}/account/listings/${l.id}/licence`} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-brand-700 hover:underline">
+                    <FileCheck2 className="size-4" aria-hidden />
+                    {dict.verify.manage}: {l.licenceVerified ? dict.verify.status.verified : l.licencePending ? dict.verify.status.pending : dict.verify.status.none}
+                  </Link>
                 )}
                 <div className="mt-auto pt-1">
                   <MyListingActions id={l.id} status={l.status} editHref={`/${locale}/account/listings/${l.id}/edit`} dict={{ account: dict.account, common: dict.common, errors: dict.errors }} />

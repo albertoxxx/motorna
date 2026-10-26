@@ -33,7 +33,7 @@ export default async function SellerPage({ params }: PageProps<"/[lang]/sellers/
           <p className="text-sm text-ink-3">
             {seller.role === "dealer" ? dict.seller.dealer : dict.seller.individual} — {dict.seller.memberSince} {formatDate(seller.createdAt, locale, { month: "long", year: "numeric" })}
           </p>
-          <p className="mt-0.5 text-xs text-ink-3">{dict.seller.notVerified}</p>
+          <p className={`mt-0.5 text-xs ${seller.phoneVerified ? "text-success-700" : "text-ink-3"}`}>{seller.phoneVerified ? dict.seller.phoneVerified : dict.seller.notVerified}</p>
         </div>
       </div>
       <h2 className="mb-5 text-xl font-bold">{t(dict.seller.listings, { name: seller.name })}</h2>

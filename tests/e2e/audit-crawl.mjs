@@ -37,12 +37,12 @@ const routes = [
   ["/sell", null], ["/faq", null], ["/about", null], ["/contact", null], ["/verification", null], ["/terms", null], ["/privacy", null],
   ["/care", null], [`/care/centers/${fx.approvedCenter}`, null], ["/care/apply", null],
   ["/auth/sign-in", null], ["/auth/sign-up", null], ["/auth/forgot-password", null], ["/auth/reset-password", null], ["/this-page-does-not-exist", null],
-  ["/account/profile", "karim"], ["/account/listings", "karim"], [`/account/listings/${fx.karimListing}/edit`, "karim"], ["/account/favorites", "karim"],
+  ["/account/profile", "karim"], ["/account/listings", "karim"], [`/account/listings/${fx.karimListing}/edit`, "karim"], [`/account/listings/${fx.karimListing}/licence`, "karim"], ["/account/favorites", "karim"],
   ["/account/messages", "karim"], [`/account/messages/${fx.conv}`, "karim"], ["/account/notifications", "karim"], ["/sell", "karim"],
   ["/account/bookings", "cust"], [`/account/bookings/${fx.booking.reference}`, "cust"], ["/account/garage", "cust"], [`/care/centers/${fx.booking.slug}/book`, "cust"],
   ["/center", "owner"], [`/center/${fx.booking.slug}`, "owner"], [`/center/${fx.booking.slug}/bookings`, "owner"], [`/center/${fx.booking.slug}/bookings/${fx.booking.reference}`, "owner"],
   [`/center/${fx.booking.slug}/schedule`, "owner"], [`/center/${fx.booking.slug}/reports`, "owner"],
-  ["/admin", "admin"], ["/admin/users", "admin"], ["/admin/users?suspended=1", "admin"], ["/admin/listings", "admin"], ["/admin/reports", "admin"], ["/admin/centers", "admin"], [`/admin/centers/${fx.appliedCenter}`, "admin"],
+  ["/admin", "admin"], ["/admin/users", "admin"], ["/admin/licences", "admin"], ["/admin/users?suspended=1", "admin"], ["/admin/listings", "admin"], ["/admin/reports", "admin"], ["/admin/centers", "admin"], [`/admin/centers/${fx.appliedCenter}`, "admin"],
   ["/admin/bookings", "admin"], [`/admin/bookings/${fx.booking.reference}`, "admin"], ["/admin/commission", "admin"], [`/admin/commission/${fx.booking.center_id}`, "admin"], ["/admin/audit", "admin"],
 ];
 const accounts = {

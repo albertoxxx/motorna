@@ -17,6 +17,9 @@ export const RULES = {
   credentialUpload: { limit: 30, windowSec: 60 * 60 },
   bookingCreate: { limit: 10, windowSec: 60 * 60 * 24 },
   bookingAction: { limit: 120, windowSec: 60 * 60 },
+  phoneCode: { limit: 5, windowSec: 60 * 60 * 24 },
+  phoneCodeNumber: { limit: 5, windowSec: 60 * 60 * 24 },
+  licenceUpload: { limit: 10, windowSec: 60 * 60 * 24 },
 } satisfies Record<string, RateRule>;
 
 /**

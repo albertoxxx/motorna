@@ -3,6 +3,9 @@ import { requireUser } from "@/server/session";
 import { getProfile } from "@/server/queries";
 import { getCities } from "@/server/listings";
 import { ProfileForm } from "@/components/profile-form";
+import { PhoneVerify } from "@/components/phone-verify";
+import { phoneVerified } from "@/lib/verification";
+import { smsDeliveryAvailable } from "@/lib/sms";
 
 export const metadata = { robots: { index: false } };
 
@@ -20,6 +23,7 @@ export default async function ProfilePage({ params }: PageProps<"/[lang]/account
         cities={cities.map(({ id, nameAr, nameEn }) => ({ id, nameAr, nameEn }))}
         dict={{ account: dict.account, common: dict.common, validation: dict.validation, errors: dict.errors, auth: dict.auth }}
       />
+      <PhoneVerify dict={{ verify: dict.verify, errors: dict.errors }} phone={profile.phone} verified={phoneVerified(profile)} available={smsDeliveryAvailable()} />
     </div>
   );
 }

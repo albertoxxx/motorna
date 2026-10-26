@@ -64,6 +64,13 @@
       "when": 1792924459218,
       "tag": "0008_care_booking",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793024763988,
+      "tag": "0009_seller_verification",
+      "breakpoints": true
     }
   ]
 }

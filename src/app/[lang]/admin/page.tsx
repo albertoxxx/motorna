@@ -12,6 +12,7 @@ export default async function AdminHome({ params }: PageProps<"/[lang]/admin">) 
   const tiles = [
     { label: A.pendingCount, value: s.pending, href: "/admin/listings", urgent: s.pending > 0 },
     { label: A.openReports, value: s.reports, href: "/admin/reports", urgent: s.reports > 0 },
+    { label: dict.verify.pendingTile, value: s.licences, href: "/admin/licences", urgent: s.licences > 0 },
     { label: A.centersQueue, value: s.centersQueue, href: "/admin/centers", urgent: s.centersQueue > 0 },
     { label: A.disputesOpen, value: s.disputes, href: "/admin/bookings", urgent: s.disputes > 0 },
     { label: A.bookingsWaiting, value: s.bookingsWaiting, href: "/admin/bookings?status=pending_provider" },
